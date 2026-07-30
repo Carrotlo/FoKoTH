@@ -1,0 +1,74 @@
+# Need help or want support? Join the Discord: https://discord.gg/kEF77QCfu7
+
+native-dialogs:
+  # Uses Minecraft's native dialog/input screens for search and text/number input when supported.
+  # Requires a compatible Paper or Paper-fork server with the Dialog API.
+  # Spigot and older versions automatically fall back to inventory/chat GUI mode.
+  # Set this to false to always use inventory/chat GUI mode.
+  enabled: true
+
+  # Sends admins a short warning when native dialogs are enabled but unavailable and the plugin falls back.
+  warn-on-fallback: true
+
+features:
+  schedules: true
+  starter-items: true
+  scoreboards: true
+  bossbars: true
+  holograms: true
+  webhooks: true
+  placeholderapi: true
+  filter: true
+  team-hooks: true
+
+discord-webhook:
+  # Enables Discord webhook notifications. The url must be a valid Discord webhook URL.
+  # Keep features.webhooks enabled too if you want webhooks to send.
+  enabled: false
+  # Put your Discord webhook link here.
+  url: ""
+  notify:
+    # Sends a webhook when a KOTH starts.
+    start: true
+    # Sends a webhook when a KOTH stops.
+    stop: true
+    # Sends a webhook when a player or team starts capturing.
+    capture-start: true
+    # Sends a webhook when a player or team stops capturing before winning.
+    capture-end: true
+    # Sends a webhook when a KOTH is captured.
+    captured: true
+
+storage:
+  # User data defaults to SQLite in userdata.db as Fo standard.
+  # Other engines are available for owners who need external storage.
+  type: sqlite
+  host: localhost
+  port: 3306
+  database: fokoth
+  username: root
+  password: ""
+  use-ssl: false
+
+hooks:
+  # none, bukkit, BetterTeams, FactionsUUID, GangsPlus, Guilds, KingdomsX,
+  # SaberFactions, SuperiorSkyblock2, Towny Advanced, UltimateClans, Parties, AxParties, ZelTeams, FoTeams
+  team-plugin: none
+
+hook-settings:
+  FoTeams: true
+  BetterTeams: true
+  FactionsUUID: true
+  GangsPlus: true
+  Guilds: true
+  KingdomsX: true
+  SaberFactions: true
+  SuperiorSkyblock2: true
+  Towny Advanced: true
+  UltimateClans: true
+  Parties: true
+  AxParties: true
+  ZelTeams: true
+
+timer-format: 1
+capture-broadcast-every-seconds: 5

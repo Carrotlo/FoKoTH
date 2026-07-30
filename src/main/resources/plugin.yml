@@ -1,0 +1,36 @@
+name: FoKoTH
+description: Configurable King of the Hill events.
+version: '${version}'
+
+main: me.foesio.foKoTH.FoKoTH
+api-version: '1.21'
+
+authors: [ Carrotio ]
+softdepend:
+  - PlaceholderAPI
+  - BattlePass
+  - BetterTeams
+  - Factions
+  - FactionsUUID
+  - GangsPlus
+  - Guilds
+  - Kingdoms
+  - SuperiorSkyblock2
+  - Towny
+  - UltimateClans
+  - Parties
+  - AxParties
+  - ZelTeams
+  - FoTeams
+
+commands:
+  fokothadmin:
+    description: FoKoTH admin command.
+    usage: /fokothadmin <version|reload|editor|list|info|start|stop>
+    aliases: [kothadmin, fokoth, koth]
+    permission: fokoth.admin
+
+permissions:
+  fokoth.admin:
+    description: Access FoKoTH admin tools.
+    default: op

@@ -1,0 +1,105 @@
+enabled: true
+display-name: "&#03fc88Spawn KOTH"
+mode: CAPTURE
+settings:
+  capture-time-seconds: 180
+  capture-end-reset-time: true
+  max-time-seconds: 7200
+  end-reward-capturer: false
+  team-mode: false
+zone:
+  location1: "world;0.0;64.0;0.0;0.0;0.0"
+  location2: "world;5.0;69.0;5.0;0.0;0.0"
+reward-commands:
+  - "give %player% diamond 1"
+reward-items: []
+broadcast-distance: 0
+starter:
+  enabled: true
+  material: BLAZE_POWDER
+  glow: true
+  name: "&#03fc88%displayName% Starter"
+  lore:
+    - " "
+    - "&#ffffffLocation: &#03fc88%x%, %y%, %z%"
+    - "&#ffffffTime: &#03fc88%time_formatted%"
+    - " "
+    - "&#03fc88Click to start"
+minimum-players: 0
+hologram:
+  enabled: true
+  location-offset:
+    x: 0.0
+    y: 3.0
+    z: 0.0
+  line-height: 0.3
+  lines:
+    - "&#03fc88%displayName%"
+    - "&#3ecf8eCapturer: &#ffffff%capturer%"
+    - "&#3ecf8eTime Left: &#ffffff%timeLeft_formatted%"
+bossbar:
+  enabled: true
+  only-show-when-capturing: false
+  view-distance: 64
+  name: "&#03fc88%displayName% &#a7b8b0| &#ffffff%capturer% (%timeLeft_formatted%)"
+  color: GREEN
+  style: SEGMENTED_20
+scoreboard:
+  enabled: true
+  only-show-when-capturing: false
+  view-distance: 64
+  title: "&#03fc88ꜰᴏᴋᴏᴛʜ"
+  lines:
+    - " "
+    - "&#03fc88KOTH"
+    - "&#ffffff%displayName%"
+    - " "
+    - "&#3ecf8eLocation"
+    - "&#ffffff%x%, %y%, %z%"
+    - " "
+    - "&#03fc88Capturer"
+    - "&#ffffff%capturer%"
+    - " "
+    - "&#3ecf8eTime Left"
+    - "&#ffffff%timeLeft_formatted%"
+    - " "
+    - "&#03fc88play.yourserver.com"
+actionbar:
+  enabled: false
+  view-distance: 64
+  message: "&#03fc88%displayName% &#ffffff| &#3ecf8e%capturer% &#ffffffcapturing &#03fc88%timeLeft_formatted%"
+broadcasts: {}
+start-commands: []
+end-commands: []
+capture-start-commands: []
+capture-end-commands: []
+webhook:
+  # Optional per-KOTH webhook payload overrides.
+  # Put the Discord webhook URL in config.yml under discord-webhook.url.
+  start:
+    enabled: true
+    content: "Get ready!"
+    color: "#03fc88"
+    title:
+      text: "%name% - STARTED"
+  stop:
+    enabled: true
+    color: "#ff5d73"
+    title:
+      text: "%name% - STOPPED"
+  capture-start:
+    enabled: true
+    color: "#3ecf8e"
+    title:
+      text: "%name% - CAPTURE STARTED"
+  capture-end:
+    enabled: true
+    color: "#ff5d73"
+    title:
+      text: "%name% - CAPTURE STOPPED"
+  captured:
+    enabled: true
+    content: ":tada:"
+    color: "#3ecf8e"
+    title:
+      text: "%name% - CAPTURED"

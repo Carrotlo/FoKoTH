@@ -1,0 +1,14 @@
+# Schedules auto-start KOTHs. You can also edit them in /fokothadmin editor.
+# Times use 5-part cron: minute hour day-of-month month day-of-week.
+# Example: "0 18 * * *" means every day at 18:00 using the server's timezone.
+# enabled: false = schedule is ignored.
+# random: false = start every KOTH listed below when the time matches.
+# random: true = pick one random KOTH from the list when the time matches.
+# koths: KOTH ids from the koths/ folder.
+# KOTH definitions are separate files in plugins/FoKoTH/koths/<id>.yml.
+example:
+  enabled: false
+  random: false
+  cron: "0 18 * * *"
+  koths:
+    - spawn
