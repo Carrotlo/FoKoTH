@@ -9,6 +9,10 @@ import me.foesio.core.editor.EditorItemFactory;
 import me.foesio.core.gui.GuiButtonConfig;
 import me.foesio.core.gui.GuiSlots;
 import me.foesio.core.gui.GuiTitles;
+import me.foesio.core.gui.EntryBrowserClick;
+import me.foesio.core.gui.EntryBrowserHolder;
+import me.foesio.core.gui.EntryBrowserMenus;
+import me.foesio.core.gui.EntryBrowserRequest;
 import me.foesio.core.message.FoMessageService;
 import me.foesio.core.message.FoStyle;
 import me.foesio.foKoTH.FoKoTH;
@@ -49,20 +53,11 @@ import java.util.concurrent.ConcurrentHashMap;
 
 public final class EditorManager implements Listener {
 
-    private static final int BROWSER_PAGE_SIZE = 45;
     private static final int DEFAULT_INPUT_WIDTH = 300;
     private static final int MAIN_SIZE = GuiSlots.sizeForRows(3);
     private static final int MAIN_KOTHS_SLOT = 11;
     private static final int MAIN_SCHEDULES_SLOT = 13;
     private static final int MAIN_SETTINGS_SLOT = 15;
-    private static final int BROWSER_ROWS = 6;
-    private static final int BROWSER_SIZE = GuiSlots.sizeForRows(BROWSER_ROWS);
-    private static final int BROWSER_ADD_SLOT = 45;
-    private static final int BROWSER_SEARCH_SLOT = 46;
-    private static final int BROWSER_CLEAR_SEARCH_SLOT = 47;
-    private static final int BROWSER_PREVIOUS_SLOT = 48;
-    private static final int BROWSER_BACK_SLOT = GuiSlots.bottomMiddleSlot(BROWSER_ROWS);
-    private static final int BROWSER_NEXT_SLOT = 50;
     private static final int KOTH_EDIT_ROWS = 5;
     private static final int KOTH_EDIT_SIZE = GuiSlots.sizeForRows(KOTH_EDIT_ROWS);
     private static final int KOTH_TOGGLE_SLOT = 10;
@@ -146,35 +141,26 @@ public final class EditorManager implements Listener {
 
     public void openKoths(Player player, int page, String search) {
         List<KothConfig> entries = kothBrowserEntries(search);
-        int pageIndex = clampBrowserPage(page, entries.size());
-        int maxPage = maxBrowserPage(entries.size());
-        Inventory inventory = Bukkit.createInventory(new EditorHolder(EditorPage.KOTHS, "", pageIndex, search), BROWSER_SIZE, title("KOTHs"));
-        fill(inventory);
-        int start = pageIndex * BROWSER_PAGE_SIZE;
-        for (int i = 0; i < BROWSER_PAGE_SIZE && start + i < entries.size(); i++) {
-            KothConfig koth = entries.get(start + i);
-            set(inventory, i, item(Material.BEACON, FoStyle.THEME + koth.id(), List.of(
+        List<EntryBrowserRequest.Entry> browserEntries = entries.stream()
+                .map(koth -> EntryBrowserRequest.Entry.of(koth.id(), item(Material.BEACON, FoStyle.THEME + koth.id(), List.of(
                 FoStyle.WHITE + "Mode: " + FoStyle.THEME + koth.mode().name(),
                 FoStyle.WHITE + "Active: " + FoStyle.THEME + kothManager.isActive(koth.id()),
                 "",
                 FoStyle.WHITE + "Click to edit."
-            )));
-        }
-        set(inventory, BROWSER_ADD_SLOT, item(Material.LIME_DYE, FoStyle.GOOD + "Add KOTH", List.of(
-            FoStyle.WHITE + "Create new event."
-        )));
-        set(inventory, BROWSER_SEARCH_SLOT, buttons.search(search));
-        if (search != null && !search.isBlank()) {
-            set(inventory, BROWSER_CLEAR_SEARCH_SLOT, buttons.clearSearch("KOTHs"));
-        }
-        if (pageIndex > 0) {
-            set(inventory, BROWSER_PREVIOUS_SLOT, buttons.previousPage(pageIndex, maxPage));
-        }
-        set(inventory, BROWSER_BACK_SLOT, buttons.back());
-        if (hasNextBrowserPage(entries.size(), pageIndex)) {
-            set(inventory, BROWSER_NEXT_SLOT, buttons.nextPage(pageIndex, maxPage));
-        }
-        player.openInventory(inventory);
+            )))).toList();
+        EntryBrowserMenus.open(player, EntryBrowserRequest.builder()
+                .title("KOTHs")
+                .entries(browserEntries)
+                .page(page)
+                .filter(search)
+                .buttons(buttons)
+                .showBack(true)
+                .addButton(item(Material.ANVIL, FoStyle.GOOD + "Add KOTH", List.of(
+                        FoStyle.WHITE + "Create new event.")))
+                .emptyItem(item(Material.PAPER, FoStyle.BAD + "No KOTHs", List.of(
+                        FoStyle.WHITE + "No KOTHs match the current search.")))
+                .context(new KothBrowserContext())
+                .build());
     }
 
     public void openKoth(Player player, String id) {
@@ -240,40 +226,47 @@ public final class EditorManager implements Listener {
     }
 
     public void openRewardCommands(Player player, String id, int page) {
+        openRewardCommands(player, id, page, "");
+    }
+
+    public void openRewardCommands(Player player, String id, int page, String search) {
         KothConfig koth = kothManager.koth(id);
         if (koth == null) {
             messages.send(player, "general.invalid-koth", Map.of("koth", id));
             openKoths(player, 0, "");
             return;
         }
+        String normalizedSearch = search == null ? "" : search.toLowerCase(Locale.ROOT);
+        List<EntryBrowserRequest.Entry> entries = new ArrayList<>();
         List<String> commands = koth.rewardCommands();
-        int pageIndex = clampBrowserPage(page, commands.size());
-        int maxPage = maxBrowserPage(commands.size());
-        Inventory inventory = Bukkit.createInventory(new EditorHolder(EditorPage.REWARD_COMMANDS, koth.id(), pageIndex, ""), BROWSER_SIZE, title("Reward Commands"));
-        fill(inventory);
-        int start = pageIndex * BROWSER_PAGE_SIZE;
-        for (int i = 0; i < BROWSER_PAGE_SIZE && start + i < commands.size(); i++) {
-            int commandIndex = start + i;
+        for (int commandIndex = 0; commandIndex < commands.size(); commandIndex++) {
             String command = commands.get(commandIndex);
-            set(inventory, i, item(Material.COMMAND_BLOCK, FoStyle.THEME + "Command #" + (commandIndex + 1), List.of(
+            String safeCommand = command == null ? "" : command;
+            if (!normalizedSearch.isBlank() && !safeCommand.toLowerCase(Locale.ROOT).contains(normalizedSearch)) {
+                continue;
+            }
+            entries.add(EntryBrowserRequest.Entry.of(String.valueOf(commandIndex), item(Material.COMMAND_BLOCK,
+                    FoStyle.THEME + "Command #" + (commandIndex + 1), List.of(
                 FoStyle.WHITE + "Current:",
                 FoStyle.THEME + (command == null ? "" : command),
                 "",
                 FoStyle.WHITE + "Left-click to edit.",
                 FoStyle.WHITE + "Right-click to delete."
-            )));
+            ))));
         }
-        set(inventory, BROWSER_ADD_SLOT, item(Material.LIME_DYE, FoStyle.GOOD + "Add Command", List.of(
-            FoStyle.WHITE + "Add one console command."
-        )));
-        if (pageIndex > 0) {
-            set(inventory, BROWSER_PREVIOUS_SLOT, buttons.previousPage(pageIndex, maxPage));
-        }
-        set(inventory, BROWSER_BACK_SLOT, buttons.back());
-        if (hasNextBrowserPage(commands.size(), pageIndex)) {
-            set(inventory, BROWSER_NEXT_SLOT, buttons.nextPage(pageIndex, maxPage));
-        }
-        player.openInventory(inventory);
+        EntryBrowserMenus.open(player, EntryBrowserRequest.builder()
+                .title("Reward Commands")
+                .entries(entries)
+                .page(page)
+                .filter(normalizedSearch)
+                .buttons(buttons)
+                .showBack(true)
+                .addButton(item(Material.ANVIL, FoStyle.GOOD + "Add Command", List.of(
+                        FoStyle.WHITE + "Add one console command.")))
+                .emptyItem(item(Material.PAPER, FoStyle.BAD + "No Commands", List.of(
+                        FoStyle.WHITE + "Use Add Command to create one.")))
+                .context(new RewardBrowserContext(koth.id()))
+                .build());
     }
 
     public void openSettings(Player player) {
@@ -290,19 +283,20 @@ public final class EditorManager implements Listener {
     }
 
     public void openSchedules(Player player) {
-        openSchedules(player, 0);
+        openSchedules(player, 0, "");
     }
 
     public void openSchedules(Player player, int page) {
-        List<KothSchedule> entries = sortedSchedules();
-        int pageIndex = clampBrowserPage(page, entries.size());
-        int maxPage = maxBrowserPage(entries.size());
-        Inventory inventory = Bukkit.createInventory(new EditorHolder(EditorPage.SCHEDULES, "", pageIndex, ""), BROWSER_SIZE, title("Schedules"));
-        fill(inventory);
-        int start = pageIndex * BROWSER_PAGE_SIZE;
-        for (int i = 0; i < BROWSER_PAGE_SIZE && start + i < entries.size(); i++) {
-            KothSchedule schedule = entries.get(start + i);
-            set(inventory, i, item(Material.CLOCK, FoStyle.THEME + schedule.id(), List.of(
+        openSchedules(player, page, "");
+    }
+
+    public void openSchedules(Player player, int page, String search) {
+        String normalizedSearch = search == null ? "" : search.toLowerCase(Locale.ROOT);
+        List<KothSchedule> entries = sortedSchedules().stream()
+                .filter(schedule -> normalizedSearch.isBlank() || schedule.id().toLowerCase(Locale.ROOT).contains(normalizedSearch))
+                .toList();
+        List<EntryBrowserRequest.Entry> browserEntries = entries.stream()
+                .map(schedule -> EntryBrowserRequest.Entry.of(schedule.id(), item(Material.CLOCK, FoStyle.THEME + schedule.id(), List.of(
                 FoStyle.WHITE + "State: " + enabledColor(schedule.enabled()) + enabledText(schedule.enabled()),
                 FoStyle.WHITE + "Cron: " + FoStyle.THEME + schedule.cron(),
                 FoStyle.WHITE + "Next: " + FoStyle.THEME + nextScheduleText(schedule),
@@ -310,19 +304,20 @@ public final class EditorManager implements Listener {
                 FoStyle.WHITE + "KOTHs: " + FoStyle.THEME + joinedKoths(schedule),
                 "",
                 FoStyle.WHITE + "Click to edit."
-            )));
-        }
-        set(inventory, BROWSER_ADD_SLOT, item(Material.LIME_DYE, FoStyle.GOOD + "Add Schedule", List.of(
-            FoStyle.WHITE + "Create timed auto-start."
-        )));
-        if (pageIndex > 0) {
-            set(inventory, BROWSER_PREVIOUS_SLOT, buttons.previousPage(pageIndex, maxPage));
-        }
-        set(inventory, BROWSER_BACK_SLOT, buttons.back());
-        if (hasNextBrowserPage(entries.size(), pageIndex)) {
-            set(inventory, BROWSER_NEXT_SLOT, buttons.nextPage(pageIndex, maxPage));
-        }
-        player.openInventory(inventory);
+            )))).toList();
+        EntryBrowserMenus.open(player, EntryBrowserRequest.builder()
+                .title("Schedules")
+                .entries(browserEntries)
+                .page(page)
+                .filter(normalizedSearch)
+                .buttons(buttons)
+                .showBack(true)
+                .addButton(item(Material.ANVIL, FoStyle.GOOD + "Add Schedule", List.of(
+                        FoStyle.WHITE + "Create timed auto-start.")))
+                .emptyItem(item(Material.PAPER, FoStyle.BAD + "No Schedules", List.of(
+                        FoStyle.WHITE + "No schedules have been configured.")))
+                .context(new ScheduleBrowserContext())
+                .build());
     }
 
     public void openSchedule(Player player, String id) {
@@ -375,6 +370,18 @@ public final class EditorManager implements Listener {
 
     @EventHandler
     public void onClick(InventoryClickEvent event) {
+        if (event.getInventory().getHolder() instanceof EntryBrowserHolder holder) {
+            if (!(event.getWhoClicked() instanceof Player player)) {
+                return;
+            }
+            if (event.getClickedInventory() == event.getView().getTopInventory()) {
+                event.setCancelled(true);
+                handleEntryBrowserClick(player, event.getRawSlot(), event.getClick(), holder);
+            } else if (event.isShiftClick()) {
+                event.setCancelled(true);
+            }
+            return;
+        }
         if (!(event.getInventory().getHolder() instanceof EditorHolder holder)) {
             return;
         }
@@ -399,11 +406,8 @@ public final class EditorManager implements Listener {
         }
         switch (holder.page()) {
             case MAIN -> clickMain(player, slot);
-            case KOTHS -> clickKoths(player, holder, slot);
             case KOTH_EDIT -> clickKothEdit(player, holder.context(), slot, event.getCursor());
-            case REWARD_COMMANDS -> clickRewardCommands(player, holder, slot, event.isRightClick());
             case SETTINGS -> clickSettings(player, slot);
-            case SCHEDULES -> clickSchedules(player, holder, slot);
             case SCHEDULE_EDIT -> clickScheduleEdit(player, holder.context(), slot);
             case CONFIRM_DELETE -> clickConfirm(player, holder.context(), slot);
         }
@@ -411,7 +415,8 @@ public final class EditorManager implements Listener {
 
     @EventHandler
     public void onClose(InventoryCloseEvent event) {
-        boolean editorInventory = event.getInventory().getHolder() instanceof EditorHolder;
+        boolean editorInventory = event.getInventory().getHolder() instanceof EditorHolder
+                || event.getInventory().getHolder() instanceof EntryBrowserHolder;
         if (!editorInventory) {
             return;
         }
@@ -432,27 +437,34 @@ public final class EditorManager implements Listener {
         else if (slot == MAIN_SETTINGS_SLOT) openSettings(player);
     }
 
-    private void clickKoths(Player player, EditorHolder holder, int slot) {
-        List<KothConfig> entries = kothBrowserEntries(holder.search());
-        int pageIndex = clampBrowserPage(holder.pageIndex(), entries.size());
-        if (slot >= 0 && slot < BROWSER_PAGE_SIZE) {
-            int index = pageIndex * BROWSER_PAGE_SIZE + slot;
-            if (index >= 0 && index < entries.size()) {
-                openKoth(player, entries.get(index).id());
-            }
+    private void handleEntryBrowserClick(Player player, int slot,
+                                         org.bukkit.event.inventory.ClickType clickType,
+                                         EntryBrowserHolder holder) {
+        EntryBrowserClick click = EntryBrowserMenus.handleClick(slot, holder, clickType);
+        if (holder.request().context() instanceof ScheduleBrowserContext) {
+            handleScheduleEntryBrowserClick(player, click, holder);
             return;
         }
-        if (slot == BROWSER_ADD_SLOT) {
-            prompt(player, "KOTH name", "letters, numbers, - or _", input -> {
+        if (holder.request().context() instanceof RewardBrowserContext context) {
+            handleRewardEntryBrowserClick(player, click, holder, context);
+            return;
+        }
+        if (!(holder.request().context() instanceof KothBrowserContext)) {
+            return;
+        }
+        String search = holder.request().filter();
+        switch (click.action()) {
+            case ENTRY -> openKoth(player, click.entryId());
+            case ADD -> prompt(player, "KOTH name", "letters, numbers, - or _", input -> {
                 if (!TextUtil.validId(input)) {
                     messages.send(player, "editor.invalid-name");
-                    openKoths(player, pageIndex, holder.search());
+                    openKoths(player, holder.request().page(), search);
                     return;
                 }
                 String id = TextUtil.id(input);
                 if (kothManager.koth(id) != null) {
                     messages.send(player, "editor.already-exists", Map.of("entry", id));
-                    openKoths(player, pageIndex, holder.search());
+                    openKoths(player, holder.request().page(), search);
                     return;
                 }
                 Location loc = player.getLocation().getBlock().getLocation();
@@ -460,21 +472,126 @@ public final class EditorManager implements Listener {
                 kothManager.reload();
                 messages.send(player, "editor.added", Map.of("entry", id));
                 openKoth(player, id);
-            }, () -> openKoths(player, pageIndex, holder.search()));
-        } else if (slot == BROWSER_SEARCH_SLOT) {
-            prompt(player, "search", "text", input -> {
+            }, () -> openKoths(player, holder.request().page(), search));
+            case SEARCH -> prompt(player, "search", "text", input -> {
                 messages.send(player, "editor.search-applied", Map.of("search", input));
                 openKoths(player, 0, input.toLowerCase(Locale.ROOT));
-            }, () -> openKoths(player, pageIndex, holder.search()));
-        } else if (slot == BROWSER_CLEAR_SEARCH_SLOT && !holder.search().isBlank()) {
-            messages.send(player, "editor.search-cleared");
+            }, () -> openKoths(player, holder.request().page(), search));
+            case CLEAR_SEARCH -> {
+                messages.send(player, "editor.search-cleared");
+                openKoths(player, 0, "");
+            }
+            case PREVIOUS_PAGE -> openKoths(player, holder.request().page() - 1, search);
+            case NEXT_PAGE -> openKoths(player, holder.request().page() + 1, search);
+            case BACK -> openMain(player);
+            case NONE -> {
+            }
+        }
+    }
+
+    private void handleScheduleEntryBrowserClick(Player player, EntryBrowserClick click, EntryBrowserHolder holder) {
+        String search = holder.request().filter();
+        switch (click.action()) {
+            case ENTRY -> openSchedule(player, click.entryId());
+            case ADD -> prompt(player, "schedule name", "letters, numbers, - or _", input -> {
+                if (!TextUtil.validId(input)) {
+                    messages.send(player, "editor.invalid-name");
+                    openSchedules(player, holder.request().page(), search);
+                    return;
+                }
+                String id = TextUtil.id(input);
+                if (config.schedules().containsKey(id)) {
+                    messages.send(player, "editor.already-exists", Map.of("entry", id));
+                    openSchedules(player, holder.request().page(), search);
+                    return;
+                }
+                saveScheduleValues(id, Map.of(
+                        "enabled", true,
+                        "random", false,
+                        "cron", "0 18 * * *",
+                        "koths", List.of()
+                ));
+                messages.send(player, "editor.added", Map.of("entry", id));
+                openSchedule(player, id);
+            }, () -> openSchedules(player, holder.request().page(), search));
+            case SEARCH -> prompt(player, "search", "text", input -> openSchedules(player, 0, input),
+                    () -> openSchedules(player, holder.request().page(), search));
+            case CLEAR_SEARCH -> openSchedules(player, 0, "");
+            case PREVIOUS_PAGE -> openSchedules(player, holder.request().page() - 1, search);
+            case NEXT_PAGE -> openSchedules(player, holder.request().page() + 1, search);
+            case BACK -> openMain(player);
+            case NONE -> {
+            }
+        }
+    }
+
+    private void handleRewardEntryBrowserClick(Player player, EntryBrowserClick click,
+                                               EntryBrowserHolder holder, RewardBrowserContext context) {
+        KothConfig koth = kothManager.koth(context.kothId());
+        if (koth == null) {
             openKoths(player, 0, "");
-        } else if (slot == BROWSER_PREVIOUS_SLOT && pageIndex > 0) {
-            openKoths(player, pageIndex - 1, holder.search());
-        } else if (slot == BROWSER_NEXT_SLOT && hasNextBrowserPage(entries.size(), pageIndex)) {
-            openKoths(player, pageIndex + 1, holder.search());
-        } else if (slot == BROWSER_BACK_SLOT) {
-            openMain(player);
+            return;
+        }
+        String search = holder.request().filter();
+        switch (click.action()) {
+            case ENTRY -> {
+                int commandIndex;
+                try {
+                    commandIndex = Integer.parseInt(click.entryId());
+                } catch (NumberFormatException ignored) {
+                    return;
+                }
+                List<String> commands = new ArrayList<>(koth.rewardCommands());
+                if (commandIndex < 0 || commandIndex >= commands.size()) {
+                    openRewardCommands(player, context.kothId(), holder.request().page(), search);
+                    return;
+                }
+                if (click.clickType() != null && click.clickType().isRightClick()) {
+                    commands.remove(commandIndex);
+                    save("koths." + koth.id() + ".reward-commands", commands);
+                    messages.send(player, "editor.deleted", Map.of("entry", "reward command #" + (commandIndex + 1)));
+                    openRewardCommands(player, context.kothId(), holder.request().page(), search);
+                    return;
+                }
+                promptRewardCommand(player, koth.id(), holder.request().page(), input -> {
+                    String command = normalizeSingleCommandInput(input);
+                    if (command.isEmpty()) {
+                        messages.send(player, "editor.invalid-command");
+                    } else if (hasCommandSeparator(command)) {
+                        messages.send(player, "editor.single-command-only");
+                    } else {
+                        List<String> updated = currentRewardCommands(koth.id());
+                        if (commandIndex >= 0 && commandIndex < updated.size()) {
+                            updated.set(commandIndex, command);
+                            save("koths." + koth.id() + ".reward-commands", updated);
+                            messages.send(player, "general.saved", Map.of("setting", "reward command"));
+                        }
+                    }
+                    openRewardCommands(player, koth.id(), holder.request().page(), search);
+                });
+            }
+            case ADD -> promptRewardCommand(player, koth.id(), holder.request().page(), input -> {
+                String command = normalizeSingleCommandInput(input);
+                if (command.isEmpty() || hasCommandSeparator(command)) {
+                    messages.send(player, command.isEmpty() ? "editor.invalid-command" : "editor.single-command-only");
+                    openRewardCommands(player, koth.id(), holder.request().page(), search);
+                    return;
+                }
+                List<String> updated = currentRewardCommands(koth.id());
+                updated.add(command);
+                save("koths." + koth.id() + ".reward-commands", updated);
+                messages.send(player, "general.saved", Map.of("setting", "reward command"));
+                openRewardCommands(player, koth.id(), holder.request().page(), search);
+            });
+            case SEARCH -> prompt(player, "search", "text", input -> openRewardCommands(
+                    player, koth.id(), 0, input), () -> openRewardCommands(
+                    player, koth.id(), holder.request().page(), search));
+            case CLEAR_SEARCH -> openRewardCommands(player, koth.id(), 0, "");
+            case PREVIOUS_PAGE -> openRewardCommands(player, koth.id(), holder.request().page() - 1, search);
+            case NEXT_PAGE -> openRewardCommands(player, koth.id(), holder.request().page() + 1, search);
+            case BACK -> openKoth(player, koth.id());
+            case NONE -> {
+            }
         }
     }
 
@@ -484,92 +601,6 @@ public final class EditorManager implements Listener {
             .filter(koth -> normalizedSearch.isBlank() || koth.id().contains(normalizedSearch))
             .sorted(Comparator.comparing(KothConfig::id))
             .toList();
-    }
-
-    private int clampBrowserPage(int page, int entries) {
-        if (entries <= 0) {
-            return 0;
-        }
-        int maxPage = (entries - 1) / BROWSER_PAGE_SIZE;
-        return Math.max(0, Math.min(page, maxPage));
-    }
-
-    private int maxBrowserPage(int entries) {
-        if (entries <= 0) {
-            return 0;
-        }
-        return (entries - 1) / BROWSER_PAGE_SIZE;
-    }
-
-    private boolean hasNextBrowserPage(int entries, int page) {
-        return (page + 1) * BROWSER_PAGE_SIZE < entries;
-    }
-
-    private void clickRewardCommands(Player player, EditorHolder holder, int slot, boolean rightClick) {
-        KothConfig koth = kothManager.koth(holder.context());
-        if (koth == null) {
-            messages.send(player, "general.invalid-koth", Map.of("koth", holder.context()));
-            openKoths(player, 0, "");
-            return;
-        }
-        List<String> commands = koth.rewardCommands();
-        int pageIndex = clampBrowserPage(holder.pageIndex(), commands.size());
-        if (slot >= 0 && slot < BROWSER_PAGE_SIZE) {
-            int index = pageIndex * BROWSER_PAGE_SIZE + slot;
-            if (index >= 0 && index < commands.size()) {
-                if (rightClick) {
-                    List<String> updated = new ArrayList<>(commands);
-                    updated.remove(index);
-                    save("koths." + koth.id() + ".reward-commands", updated);
-                    messages.send(player, "editor.deleted", Map.of("entry", "reward command #" + (index + 1)));
-                    openRewardCommands(player, koth.id(), pageIndex);
-                    return;
-                }
-                promptRewardCommand(player, koth.id(), pageIndex, input -> {
-                    String command = normalizeSingleCommandInput(input);
-                    if (command.isEmpty()) {
-                        messages.send(player, "editor.invalid-command");
-                    } else if (hasCommandSeparator(command)) {
-                        messages.send(player, "editor.single-command-only");
-                    } else {
-                        List<String> updated = currentRewardCommands(koth.id());
-                        if (index >= 0 && index < updated.size()) {
-                            updated.set(index, command);
-                            save("koths." + koth.id() + ".reward-commands", updated);
-                            messages.send(player, "general.saved", Map.of("setting", "reward command"));
-                        }
-                    }
-                    openRewardCommands(player, koth.id(), pageIndex);
-                });
-            }
-            return;
-        }
-        if (slot == BROWSER_ADD_SLOT) {
-            promptRewardCommand(player, koth.id(), pageIndex, input -> {
-                String command = normalizeSingleCommandInput(input);
-                if (command.isEmpty()) {
-                    messages.send(player, "editor.invalid-command");
-                    openRewardCommands(player, koth.id(), pageIndex);
-                    return;
-                }
-                if (hasCommandSeparator(command)) {
-                    messages.send(player, "editor.single-command-only");
-                    openRewardCommands(player, koth.id(), pageIndex);
-                    return;
-                }
-                List<String> updated = currentRewardCommands(koth.id());
-                updated.add(command);
-                save("koths." + koth.id() + ".reward-commands", updated);
-                messages.send(player, "general.saved", Map.of("setting", "reward command"));
-                openRewardCommands(player, koth.id(), commands.size() / BROWSER_PAGE_SIZE);
-            });
-        } else if (slot == BROWSER_PREVIOUS_SLOT && pageIndex > 0) {
-            openRewardCommands(player, koth.id(), pageIndex - 1);
-        } else if (slot == BROWSER_NEXT_SLOT && hasNextBrowserPage(commands.size(), pageIndex)) {
-            openRewardCommands(player, koth.id(), pageIndex + 1);
-        } else if (slot == BROWSER_BACK_SLOT) {
-            openKoth(player, koth.id());
-        }
     }
 
     private void promptRewardCommand(Player player, String kothId, int page, java.util.function.Consumer<String> callback) {
@@ -680,47 +711,6 @@ public final class EditorManager implements Listener {
             }
         }
         if (slot == SETTINGS_BACK_SLOT) {
-            openMain(player);
-        }
-    }
-
-    private void clickSchedules(Player player, EditorHolder holder, int slot) {
-        List<KothSchedule> entries = sortedSchedules();
-        int pageIndex = clampBrowserPage(holder.pageIndex(), entries.size());
-        if (slot >= 0 && slot < BROWSER_PAGE_SIZE) {
-            int index = pageIndex * BROWSER_PAGE_SIZE + slot;
-            if (index >= 0 && index < entries.size()) {
-                openSchedule(player, entries.get(index).id());
-            }
-            return;
-        }
-        if (slot == BROWSER_ADD_SLOT) {
-            prompt(player, "schedule name", "letters, numbers, - or _", input -> {
-                if (!TextUtil.validId(input)) {
-                    messages.send(player, "editor.invalid-name");
-                    openSchedules(player, pageIndex);
-                    return;
-                }
-                String id = TextUtil.id(input);
-                if (config.schedules().containsKey(id)) {
-                    messages.send(player, "editor.already-exists", Map.of("entry", id));
-                    openSchedules(player, pageIndex);
-                    return;
-                }
-                saveScheduleValues(id, Map.of(
-                    "enabled", true,
-                    "random", false,
-                    "cron", "0 18 * * *",
-                    "koths", List.of()
-                ));
-                messages.send(player, "editor.added", Map.of("entry", id));
-                openSchedule(player, id);
-            }, () -> openSchedules(player, pageIndex));
-        } else if (slot == BROWSER_PREVIOUS_SLOT && pageIndex > 0) {
-            openSchedules(player, pageIndex - 1);
-        } else if (slot == BROWSER_NEXT_SLOT && hasNextBrowserPage(entries.size(), pageIndex)) {
-            openSchedules(player, pageIndex + 1);
-        } else if (slot == BROWSER_BACK_SLOT) {
             openMain(player);
         }
     }
@@ -965,6 +955,15 @@ public final class EditorManager implements Listener {
 
     private ItemStack item(Material material, String name, List<String> lore) {
         return EditorItemFactory.item(material, name, lore);
+    }
+
+    private record KothBrowserContext() {
+    }
+
+    private record ScheduleBrowserContext() {
+    }
+
+    private record RewardBrowserContext(String kothId) {
     }
 
     private ItemStack toggleItem(boolean enabled, String name, List<String> lore) {
