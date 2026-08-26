@@ -1,6 +1,7 @@
 package me.foesio.foKoTH.listener;
 
 import me.foesio.foKoTH.config.KothConfig;
+import me.foesio.core.sound.FoSoundService;
 import me.foesio.foKoTH.koth.KothManager;
 import me.foesio.core.message.FoMessageService;
 import org.bukkit.event.EventHandler;
@@ -18,11 +19,13 @@ public final class StarterListener implements Listener {
     private final JavaPlugin plugin;
     private final FoMessageService messages;
     private final KothManager kothManager;
+    private final FoSoundService sounds;
 
-    public StarterListener(JavaPlugin plugin, FoMessageService messages, KothManager kothManager) {
+    public StarterListener(JavaPlugin plugin, FoMessageService messages, KothManager kothManager, FoSoundService sounds) {
         this.plugin = plugin;
         this.messages = messages;
         this.kothManager = kothManager;
+        this.sounds = sounds;
     }
 
     @EventHandler
@@ -39,10 +42,12 @@ public final class StarterListener implements Listener {
         KothConfig koth = kothManager.koth(id);
         if (koth == null) {
             messages.send(event.getPlayer(), "general.invalid-koth", Map.of("koth", id));
+            sounds.play(event.getPlayer(), "koth.starter-error");
             return;
         }
         if (!kothManager.starterItemsEnabled() || !koth.starterEnabled()) {
             messages.send(event.getPlayer(), "koth.starter-disabled", Map.of("koth", id));
+            sounds.play(event.getPlayer(), "koth.starter-disabled");
             return;
         }
         if (kothManager.start(id, event.getPlayer(), KothManager.StartReason.STARTER)) {

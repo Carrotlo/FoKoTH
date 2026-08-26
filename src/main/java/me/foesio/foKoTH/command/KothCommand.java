@@ -84,11 +84,17 @@ public final class KothCommand implements CommandExecutor, TabCompleter {
                 FoReloadResult result = plugin.reloadFoKoTH();
                 if (result.successful()) {
                     plugin.messages().send(sender, "general.reloaded");
+                    if (sender instanceof Player player) {
+                        plugin.adminSounds().reload(player);
+                    }
                 } else {
                     plugin.messages().send(sender, "general.reload-failed", Map.of(
                         "step", result.failedStep(),
                         "error", result.errorMessage()
                     ));
+                    if (sender instanceof Player player) {
+                        plugin.adminSounds().reloadError(player);
+                    }
                 }
             }
             case "resetwins" -> resetWins(sender, args);
@@ -137,6 +143,7 @@ public final class KothCommand implements CommandExecutor, TabCompleter {
         }
         plugin.kothManager().create(id, mode, selection.zone());
         plugin.messages().send(player, "koth.created", Map.of("koth", id));
+        plugin.sounds().play(player, "koth.created");
     }
 
     private void delete(CommandSender sender, String[] args) {
@@ -146,6 +153,9 @@ public final class KothCommand implements CommandExecutor, TabCompleter {
         }
         if (plugin.kothManager().delete(args[1])) {
             plugin.messages().send(sender, "koth.deleted", Map.of("koth", args[1]));
+            if (sender instanceof Player player) {
+                plugin.sounds().play(player, "koth.deleted");
+            }
         } else {
             plugin.messages().send(sender, "general.invalid-koth", Map.of("koth", args[1]));
         }
@@ -208,6 +218,7 @@ public final class KothCommand implements CommandExecutor, TabCompleter {
         if (koth.zone().center() != null) {
             player.teleport(koth.zone().center());
             plugin.messages().send(player, "koth.teleported", Map.of("koth", koth.id()));
+            plugin.sounds().play(player, "koth.teleported");
         }
     }
 
@@ -272,6 +283,9 @@ public final class KothCommand implements CommandExecutor, TabCompleter {
             "koth", koth.id(),
             "player", target.getName()
         ));
+        if (sender instanceof Player player) {
+            plugin.sounds().play(player, "koth.starter-given");
+        }
     }
 
     private void resetWins(CommandSender sender, String[] args) {
@@ -282,6 +296,9 @@ public final class KothCommand implements CommandExecutor, TabCompleter {
         OfflinePlayer player = Bukkit.getOfflinePlayer(args[1]);
         plugin.userDataStore().resetWins(player);
         plugin.messages().send(sender, "koth.reset-wins", Map.of("player", args[1]));
+        if (sender instanceof Player playerSender) {
+            plugin.sounds().play(playerSender, "koth.admin-action");
+        }
     }
 
     @Override

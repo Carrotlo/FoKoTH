@@ -3,6 +3,7 @@ package me.foesio.foKoTH.koth;
 import me.foesio.core.inventory.InventoryDepositService;
 import me.foesio.core.inventory.OverflowPolicy;
 import me.foesio.core.message.FoMessageService;
+import me.foesio.core.sound.FoSoundService;
 import me.foesio.foKoTH.FoKoTH;
 import me.foesio.foKoTH.config.ConfigService;
 import me.foesio.foKoTH.config.KothConfig;
@@ -41,6 +42,7 @@ public final class KothManager {
     private final JdbcUserDataStore userData;
     private final TeamService teamService;
     private final WebhookService webhookService;
+    private final FoSoundService sounds;
     private final InventoryDepositService inventoryDeposit = InventoryDepositService.create();
     private final NamespacedKey wandKey;
     private final NamespacedKey starterKey;
@@ -51,13 +53,14 @@ public final class KothManager {
     private long tickGeneration;
     private long particleGeneration;
 
-    public KothManager(FoKoTH plugin, FoMessageService messages, ConfigService config, JdbcUserDataStore userData, TeamService teamService, WebhookService webhookService) {
+    public KothManager(FoKoTH plugin, FoMessageService messages, ConfigService config, JdbcUserDataStore userData, TeamService teamService, WebhookService webhookService, FoSoundService sounds) {
         this.plugin = plugin;
         this.messages = messages;
         this.config = config;
         this.userData = userData;
         this.teamService = teamService;
         this.webhookService = webhookService;
+        this.sounds = sounds;
         this.wandKey = new NamespacedKey(plugin, "wand");
         this.starterKey = new NamespacedKey(plugin, "starter");
     }
@@ -119,7 +122,7 @@ public final class KothManager {
             }
             return false;
         }
-        ActiveKoth event = new ActiveKoth(plugin, messages, config, userData, teamService, webhookService, koth, starter);
+        ActiveKoth event = new ActiveKoth(plugin, messages, config, userData, teamService, webhookService, sounds, koth, starter);
         active.put(key, event);
         event.start();
         return true;
@@ -242,6 +245,7 @@ public final class KothManager {
     public void giveWand(Player player) {
         inventoryDeposit.deposit(player, wand(), player.getLocation(), OverflowPolicy.DROP_OVERFLOW);
         messages.send(player, "koth.wand-given");
+        sounds.play(player, "koth.wand-given");
     }
 
     public void setSelection(Player player, boolean first, Location location) {
@@ -249,9 +253,11 @@ public final class KothManager {
         if (first) {
             selection.first(location);
             messages.send(player, "koth.wand-pos1", Map.of("location", LocationUtil.shortString(location)));
+            sounds.play(player, "koth.selection-first");
         } else {
             selection.second(location);
             messages.send(player, "koth.wand-pos2", Map.of("location", LocationUtil.shortString(location)));
+            sounds.play(player, "koth.selection-second");
         }
     }
 

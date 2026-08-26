@@ -4,6 +4,7 @@ import me.foesio.core.command.CommandPlaceholders;
 import me.foesio.core.inventory.InventoryDepositService;
 import me.foesio.core.inventory.OverflowPolicy;
 import me.foesio.core.message.FoMessageService;
+import me.foesio.core.sound.FoSoundService;
 import me.foesio.foKoTH.api.event.FoKothCapturedEvent;
 import me.foesio.foKoTH.api.event.FoKothCaptureEndEvent;
 import me.foesio.foKoTH.api.event.FoKothCaptureStartEvent;
@@ -53,6 +54,7 @@ public final class ActiveKoth {
     private final JdbcUserDataStore userData;
     private final TeamService teamService;
     private final WebhookService webhookService;
+    private final FoSoundService sounds;
     private final InventoryDepositService inventoryDeposit = InventoryDepositService.create();
     private KothConfig config;
     private final Player starter;
@@ -71,13 +73,14 @@ public final class ActiveKoth {
     private final Map<UUID, Scoreboard> previousScoreboards = new HashMap<>();
     private final Set<UUID> scoreboardViewers = new HashSet<>();
 
-    public ActiveKoth(JavaPlugin plugin, FoMessageService messages, ConfigService configService, JdbcUserDataStore userData, TeamService teamService, WebhookService webhookService, KothConfig config, Player starter) {
+    public ActiveKoth(JavaPlugin plugin, FoMessageService messages, ConfigService configService, JdbcUserDataStore userData, TeamService teamService, WebhookService webhookService, FoSoundService sounds, KothConfig config, Player starter) {
         this.plugin = plugin;
         this.messages = messages;
         this.configService = configService;
         this.userData = userData;
         this.teamService = teamService;
         this.webhookService = webhookService;
+        this.sounds = sounds;
         this.config = config;
         this.starter = starter;
         this.bossBar = Bukkit.createBossBar("", config.bossbar().color(), config.bossbar().style());
@@ -87,6 +90,7 @@ public final class ActiveKoth {
         Bukkit.getPluginManager().callEvent(new FoKothStartEvent(config.id()));
         runCommands(config.startCommands(), null);
         broadcast(starter == null ? "start" : "started-with-starter");
+        sounds.play(config.zone().center(), "koth.started");
         webhook("start");
         spawnHologram();
     }
@@ -133,6 +137,7 @@ public final class ActiveKoth {
         stopped = true;
         if (sendBroadcast) {
             broadcast(naturalEnd ? "out-of-time" : "stop");
+            sounds.play(config.zone().center(), naturalEnd ? "koth.timeout" : "koth.stopped");
         }
         runCommands(config.endCommands(), currentCapturer());
         Bukkit.getPluginManager().callEvent(new FoKothStopEvent(config.id(), naturalEnd));
@@ -302,6 +307,7 @@ public final class ActiveKoth {
         Bukkit.getPluginManager().callEvent(new FoKothCaptureStartEvent(config.id(), player));
         runCommands(config.captureStartCommands(), player);
         broadcast("capture-start");
+        sounds.play(player, "koth.capture-start");
         webhook("capture-start");
     }
 
@@ -309,6 +315,7 @@ public final class ActiveKoth {
         Bukkit.getPluginManager().callEvent(new FoKothCaptureEndEvent(config.id(), player));
         runCommands(config.captureEndCommands(), player);
         broadcast("capture-lost");
+        sounds.play(player, "koth.capture-lost");
         webhook("capture-end");
         capturer = null;
     }
@@ -318,7 +325,9 @@ public final class ActiveKoth {
         Bukkit.getPluginManager().callEvent(new FoKothCapturedEvent(config.id(), player, team));
         userData.recordWin(player, team, config.id(), config.mode().name());
         reward(player);
+        sounds.play(player, "koth.reward");
         broadcast("captured");
+        sounds.play(config.zone().center(), "koth.captured");
         webhook("captured");
         stop(true, false);
     }

@@ -15,6 +15,8 @@ import me.foesio.core.gui.EntryBrowserMenus;
 import me.foesio.core.gui.EntryBrowserRequest;
 import me.foesio.core.message.FoMessageService;
 import me.foesio.core.message.FoStyle;
+import me.foesio.core.sound.FoEditorSounds;
+import me.foesio.core.sound.FoSoundService;
 import me.foesio.foKoTH.FoKoTH;
 import me.foesio.foKoTH.config.ConfigService;
 import me.foesio.foKoTH.config.ItemDefinition;
@@ -107,15 +109,19 @@ public final class EditorManager implements Listener {
     private final ConfigService config;
     private final KothManager kothManager;
     private final ScheduleManager scheduleManager;
+    private final FoSoundService sounds;
+    private final FoEditorSounds editorSounds;
     private final GuiButtonConfig buttons = GuiButtonConfig.defaults();
     private final Set<UUID> fallbackWarnedPlayers = ConcurrentHashMap.newKeySet();
 
-    public EditorManager(FoKoTH plugin, FoMessageService messages, ConfigService config, KothManager kothManager, ScheduleManager scheduleManager) {
+    public EditorManager(FoKoTH plugin, FoMessageService messages, ConfigService config, KothManager kothManager, ScheduleManager scheduleManager, FoSoundService sounds, FoEditorSounds editorSounds) {
         this.plugin = plugin;
         this.messages = messages;
         this.config = config;
         this.kothManager = kothManager;
         this.scheduleManager = scheduleManager;
+        this.sounds = sounds;
+        this.editorSounds = editorSounds;
         reload();
     }
 
@@ -124,6 +130,10 @@ public final class EditorManager implements Listener {
     }
 
     public void openMain(Player player) {
+        openMain(player, true);
+    }
+
+    private void openMain(Player player, boolean playOpen) {
         Inventory inventory = Bukkit.createInventory(new EditorHolder(EditorPage.MAIN, "", 0, ""), MAIN_SIZE, title("FoKoTH Editor"));
         fill(inventory);
         set(inventory, MAIN_KOTHS_SLOT, item(Material.BEACON, FoStyle.THEME + "KOTHs", List.of(
@@ -137,9 +147,16 @@ public final class EditorManager implements Listener {
             FoStyle.WHITE + "Toggle global features."
         )));
         player.openInventory(inventory);
+        if (playOpen) {
+            editorSounds.open(player);
+        }
     }
 
     public void openKoths(Player player, int page, String search) {
+        openKoths(player, page, search, true);
+    }
+
+    private void openKoths(Player player, int page, String search, boolean playOpen) {
         List<KothConfig> entries = kothBrowserEntries(search);
         List<EntryBrowserRequest.Entry> browserEntries = entries.stream()
                 .map(koth -> EntryBrowserRequest.Entry.of(koth.id(), item(Material.BEACON, FoStyle.THEME + koth.id(), List.of(
@@ -161,9 +178,16 @@ public final class EditorManager implements Listener {
                         FoStyle.WHITE + "No KOTHs match the current search.")))
                 .context(new KothBrowserContext())
                 .build());
+        if (playOpen) {
+            editorSounds.open(player);
+        }
     }
 
     public void openKoth(Player player, String id) {
+        openKoth(player, id, true);
+    }
+
+    private void openKoth(Player player, String id, boolean playOpen) {
         KothConfig koth = kothManager.koth(id);
         if (koth == null) {
             messages.send(player, "general.invalid-koth", Map.of("koth", id));
@@ -223,6 +247,9 @@ public final class EditorManager implements Listener {
         )));
         set(inventory, KOTH_BACK_SLOT, buttons.back());
         player.openInventory(inventory);
+        if (playOpen) {
+            editorSounds.open(player);
+        }
     }
 
     public void openRewardCommands(Player player, String id, int page) {
@@ -230,6 +257,10 @@ public final class EditorManager implements Listener {
     }
 
     public void openRewardCommands(Player player, String id, int page, String search) {
+        openRewardCommands(player, id, page, search, true);
+    }
+
+    private void openRewardCommands(Player player, String id, int page, String search, boolean playOpen) {
         KothConfig koth = kothManager.koth(id);
         if (koth == null) {
             messages.send(player, "general.invalid-koth", Map.of("koth", id));
@@ -267,9 +298,16 @@ public final class EditorManager implements Listener {
                         FoStyle.WHITE + "Use Add Command to create one.")))
                 .context(new RewardBrowserContext(koth.id()))
                 .build());
+        if (playOpen) {
+            editorSounds.open(player);
+        }
     }
 
     public void openSettings(Player player) {
+        openSettings(player, true);
+    }
+
+    private void openSettings(Player player, boolean playOpen) {
         Inventory inventory = Bukkit.createInventory(new EditorHolder(EditorPage.SETTINGS, "", 0, ""), SETTINGS_SIZE, title("Settings"));
         fill(inventory);
         for (String feature : SETTINGS_FEATURES) {
@@ -280,6 +318,9 @@ public final class EditorManager implements Listener {
         }
         set(inventory, SETTINGS_BACK_SLOT, buttons.back());
         player.openInventory(inventory);
+        if (playOpen) {
+            editorSounds.open(player);
+        }
     }
 
     public void openSchedules(Player player) {
@@ -291,6 +332,10 @@ public final class EditorManager implements Listener {
     }
 
     public void openSchedules(Player player, int page, String search) {
+        openSchedules(player, page, search, true);
+    }
+
+    private void openSchedules(Player player, int page, String search, boolean playOpen) {
         String normalizedSearch = search == null ? "" : search.toLowerCase(Locale.ROOT);
         List<KothSchedule> entries = sortedSchedules().stream()
                 .filter(schedule -> normalizedSearch.isBlank() || schedule.id().toLowerCase(Locale.ROOT).contains(normalizedSearch))
@@ -318,9 +363,16 @@ public final class EditorManager implements Listener {
                         FoStyle.WHITE + "No schedules have been configured.")))
                 .context(new ScheduleBrowserContext())
                 .build());
+        if (playOpen) {
+            editorSounds.open(player);
+        }
     }
 
     public void openSchedule(Player player, String id) {
+        openSchedule(player, id, true);
+    }
+
+    private void openSchedule(Player player, String id, boolean playOpen) {
         KothSchedule schedule = config.schedules().get(id.toLowerCase(Locale.ROOT));
         if (schedule == null) {
             messages.send(player, "editor.invalid-schedule", Map.of("schedule", id));
@@ -354,6 +406,9 @@ public final class EditorManager implements Listener {
         )));
         set(inventory, SCHEDULE_BACK_SLOT, buttons.back());
         player.openInventory(inventory);
+        if (playOpen) {
+            editorSounds.open(player);
+        }
     }
 
     public void openConfirmDelete(Player player, String kothId) {
@@ -366,6 +421,7 @@ public final class EditorManager implements Listener {
             FoStyle.WHITE + "Return."
         )));
         player.openInventory(inventory);
+        editorSounds.open(player);
     }
 
     @EventHandler
@@ -394,6 +450,7 @@ public final class EditorManager implements Listener {
         event.setCancelled(true);
         if (!player.hasPermission("fokoth.admin")) {
             messages.send(player, "general.no-permission");
+            editorSounds.error(player);
             player.closeInventory();
             return;
         }
@@ -458,32 +515,46 @@ public final class EditorManager implements Listener {
             case ADD -> prompt(player, "KOTH name", "letters, numbers, - or _", input -> {
                 if (!TextUtil.validId(input)) {
                     messages.send(player, "editor.invalid-name");
-                    openKoths(player, holder.request().page(), search);
+                    editorSounds.error(player);
+                    openKoths(player, holder.request().page(), search, false);
                     return;
                 }
                 String id = TextUtil.id(input);
                 if (kothManager.koth(id) != null) {
                     messages.send(player, "editor.already-exists", Map.of("entry", id));
-                    openKoths(player, holder.request().page(), search);
+                    editorSounds.error(player);
+                    openKoths(player, holder.request().page(), search, false);
                     return;
                 }
                 Location loc = player.getLocation().getBlock().getLocation();
                 config.createKoth(id, KothMode.CAPTURE, new KothZone(loc, loc.clone().add(5, 5, 5)));
                 kothManager.reload();
                 messages.send(player, "editor.added", Map.of("entry", id));
-                openKoth(player, id);
-            }, () -> openKoths(player, holder.request().page(), search));
+                editorSounds.add(player);
+                openKoth(player, id, false);
+            }, () -> openKoths(player, holder.request().page(), search, false));
             case SEARCH -> prompt(player, "search", "text", input -> {
                 messages.send(player, "editor.search-applied", Map.of("search", input));
-                openKoths(player, 0, input.toLowerCase(Locale.ROOT));
-            }, () -> openKoths(player, holder.request().page(), search));
+                editorSounds.search(player);
+                openKoths(player, 0, input.toLowerCase(Locale.ROOT), false);
+            }, () -> openKoths(player, holder.request().page(), search, false));
             case CLEAR_SEARCH -> {
                 messages.send(player, "editor.search-cleared");
-                openKoths(player, 0, "");
+                editorSounds.clearSearch(player);
+                openKoths(player, 0, "", false);
             }
-            case PREVIOUS_PAGE -> openKoths(player, holder.request().page() - 1, search);
-            case NEXT_PAGE -> openKoths(player, holder.request().page() + 1, search);
-            case BACK -> openMain(player);
+            case PREVIOUS_PAGE -> {
+                editorSounds.previousPage(player);
+                openKoths(player, holder.request().page() - 1, search, false);
+            }
+            case NEXT_PAGE -> {
+                editorSounds.nextPage(player);
+                openKoths(player, holder.request().page() + 1, search, false);
+            }
+            case BACK -> {
+                editorSounds.back(player);
+                openMain(player, false);
+            }
             case NONE -> {
             }
         }
@@ -496,13 +567,15 @@ public final class EditorManager implements Listener {
             case ADD -> prompt(player, "schedule name", "letters, numbers, - or _", input -> {
                 if (!TextUtil.validId(input)) {
                     messages.send(player, "editor.invalid-name");
-                    openSchedules(player, holder.request().page(), search);
+                    editorSounds.error(player);
+                    openSchedules(player, holder.request().page(), search, false);
                     return;
                 }
                 String id = TextUtil.id(input);
                 if (config.schedules().containsKey(id)) {
                     messages.send(player, "editor.already-exists", Map.of("entry", id));
-                    openSchedules(player, holder.request().page(), search);
+                    editorSounds.error(player);
+                    openSchedules(player, holder.request().page(), search, false);
                     return;
                 }
                 saveScheduleValues(id, Map.of(
@@ -512,14 +585,29 @@ public final class EditorManager implements Listener {
                         "koths", List.of()
                 ));
                 messages.send(player, "editor.added", Map.of("entry", id));
-                openSchedule(player, id);
-            }, () -> openSchedules(player, holder.request().page(), search));
-            case SEARCH -> prompt(player, "search", "text", input -> openSchedules(player, 0, input),
-                    () -> openSchedules(player, holder.request().page(), search));
-            case CLEAR_SEARCH -> openSchedules(player, 0, "");
-            case PREVIOUS_PAGE -> openSchedules(player, holder.request().page() - 1, search);
-            case NEXT_PAGE -> openSchedules(player, holder.request().page() + 1, search);
-            case BACK -> openMain(player);
+                editorSounds.add(player);
+                openSchedule(player, id, false);
+            }, () -> openSchedules(player, holder.request().page(), search, false));
+            case SEARCH -> prompt(player, "search", "text", input -> {
+                editorSounds.search(player);
+                openSchedules(player, 0, input, false);
+            }, () -> openSchedules(player, holder.request().page(), search, false));
+            case CLEAR_SEARCH -> {
+                editorSounds.clearSearch(player);
+                openSchedules(player, 0, "", false);
+            }
+            case PREVIOUS_PAGE -> {
+                editorSounds.previousPage(player);
+                openSchedules(player, holder.request().page() - 1, search, false);
+            }
+            case NEXT_PAGE -> {
+                editorSounds.nextPage(player);
+                openSchedules(player, holder.request().page() + 1, search, false);
+            }
+            case BACK -> {
+                editorSounds.back(player);
+                openMain(player, false);
+            }
             case NONE -> {
             }
         }
@@ -529,7 +617,8 @@ public final class EditorManager implements Listener {
                                                EntryBrowserHolder holder, RewardBrowserContext context) {
         KothConfig koth = kothManager.koth(context.kothId());
         if (koth == null) {
-            openKoths(player, 0, "");
+            editorSounds.error(player);
+            openKoths(player, 0, "", false);
             return;
         }
         String search = holder.request().filter();
@@ -539,57 +628,78 @@ public final class EditorManager implements Listener {
                 try {
                     commandIndex = Integer.parseInt(click.entryId());
                 } catch (NumberFormatException ignored) {
+                    editorSounds.error(player);
                     return;
                 }
                 List<String> commands = new ArrayList<>(koth.rewardCommands());
                 if (commandIndex < 0 || commandIndex >= commands.size()) {
-                    openRewardCommands(player, context.kothId(), holder.request().page(), search);
+                    editorSounds.error(player);
+                    openRewardCommands(player, context.kothId(), holder.request().page(), search, false);
                     return;
                 }
                 if (click.clickType() != null && click.clickType().isRightClick()) {
                     commands.remove(commandIndex);
                     save("koths." + koth.id() + ".reward-commands", commands);
                     messages.send(player, "editor.deleted", Map.of("entry", "reward command #" + (commandIndex + 1)));
-                    openRewardCommands(player, context.kothId(), holder.request().page(), search);
+                    editorSounds.delete(player);
+                    openRewardCommands(player, context.kothId(), holder.request().page(), search, false);
                     return;
                 }
                 promptRewardCommand(player, koth.id(), holder.request().page(), input -> {
                     String command = normalizeSingleCommandInput(input);
                     if (command.isEmpty()) {
                         messages.send(player, "editor.invalid-command");
+                        editorSounds.error(player);
                     } else if (hasCommandSeparator(command)) {
                         messages.send(player, "editor.single-command-only");
+                        editorSounds.error(player);
                     } else {
                         List<String> updated = currentRewardCommands(koth.id());
                         if (commandIndex >= 0 && commandIndex < updated.size()) {
                             updated.set(commandIndex, command);
                             save("koths." + koth.id() + ".reward-commands", updated);
                             messages.send(player, "general.saved", Map.of("setting", "reward command"));
+                            editorSounds.save(player);
                         }
                     }
-                    openRewardCommands(player, koth.id(), holder.request().page(), search);
+                    openRewardCommands(player, koth.id(), holder.request().page(), search, false);
                 });
             }
             case ADD -> promptRewardCommand(player, koth.id(), holder.request().page(), input -> {
                 String command = normalizeSingleCommandInput(input);
                 if (command.isEmpty() || hasCommandSeparator(command)) {
                     messages.send(player, command.isEmpty() ? "editor.invalid-command" : "editor.single-command-only");
-                    openRewardCommands(player, koth.id(), holder.request().page(), search);
+                    editorSounds.error(player);
+                    openRewardCommands(player, koth.id(), holder.request().page(), search, false);
                     return;
                 }
                 List<String> updated = currentRewardCommands(koth.id());
                 updated.add(command);
                 save("koths." + koth.id() + ".reward-commands", updated);
                 messages.send(player, "general.saved", Map.of("setting", "reward command"));
-                openRewardCommands(player, koth.id(), holder.request().page(), search);
+                editorSounds.add(player);
+                openRewardCommands(player, koth.id(), holder.request().page(), search, false);
             });
-            case SEARCH -> prompt(player, "search", "text", input -> openRewardCommands(
-                    player, koth.id(), 0, input), () -> openRewardCommands(
-                    player, koth.id(), holder.request().page(), search));
-            case CLEAR_SEARCH -> openRewardCommands(player, koth.id(), 0, "");
-            case PREVIOUS_PAGE -> openRewardCommands(player, koth.id(), holder.request().page() - 1, search);
-            case NEXT_PAGE -> openRewardCommands(player, koth.id(), holder.request().page() + 1, search);
-            case BACK -> openKoth(player, koth.id());
+            case SEARCH -> prompt(player, "search", "text", input -> {
+                editorSounds.search(player);
+                openRewardCommands(player, koth.id(), 0, input, false);
+            }, () -> openRewardCommands(player, koth.id(), holder.request().page(), search, false));
+            case CLEAR_SEARCH -> {
+                editorSounds.clearSearch(player);
+                openRewardCommands(player, koth.id(), 0, "", false);
+            }
+            case PREVIOUS_PAGE -> {
+                editorSounds.previousPage(player);
+                openRewardCommands(player, koth.id(), holder.request().page() - 1, search, false);
+            }
+            case NEXT_PAGE -> {
+                editorSounds.nextPage(player);
+                openRewardCommands(player, koth.id(), holder.request().page() + 1, search, false);
+            }
+            case BACK -> {
+                editorSounds.back(player);
+                openKoth(player, koth.id(), false);
+            }
             case NONE -> {
             }
         }
@@ -604,7 +714,7 @@ public final class EditorManager implements Listener {
     }
 
     private void promptRewardCommand(Player player, String kothId, int page, java.util.function.Consumer<String> callback) {
-        prompt(player, "reward command", "one console command", callback, () -> openRewardCommands(player, kothId, page));
+        prompt(player, "reward command", "one console command", callback, () -> openRewardCommands(player, kothId, page, "", false));
     }
 
     private String normalizeSingleCommandInput(String input) {
@@ -623,24 +733,29 @@ public final class EditorManager implements Listener {
     private void clickKothEdit(Player player, String id, int slot, ItemStack cursor) {
         KothConfig koth = kothManager.koth(id);
         if (koth == null) {
-            openKoths(player, 0, "");
+            editorSounds.error(player);
+            openKoths(player, 0, "", false);
             return;
         }
         if (slot == KOTH_TOGGLE_SLOT) {
-            save("koths." + id + ".enabled", !koth.enabled());
+            boolean enabled = !koth.enabled();
+            save("koths." + id + ".enabled", enabled);
             messages.send(player, "general.saved", Map.of("setting", "enabled"));
-            openKoth(player, id);
+            editorSounds.toggle(player, enabled);
+            openKoth(player, id, false);
         } else if (slot == KOTH_MODE_SLOT) {
             KothMode next = koth.mode() == KothMode.CAPTURE ? KothMode.SCORE : KothMode.CAPTURE;
             save("koths." + id + ".mode", next.name());
             messages.send(player, "general.saved", Map.of("setting", "mode"));
-            openKoth(player, id);
+            editorSounds.cycle(player);
+            openKoth(player, id, false);
         } else if (slot == KOTH_DISPLAY_NAME_SLOT) {
             prompt(player, "display name", "text with colors", input -> {
                 save("koths." + id + ".display-name", input);
                 messages.send(player, "general.saved", Map.of("setting", "display name"));
-                openKoth(player, id);
-            }, () -> openKoth(player, id));
+                editorSounds.save(player);
+                openKoth(player, id, false);
+            }, () -> openKoth(player, id, false));
         } else if (slot == KOTH_CAPTURE_TIME_SLOT) {
             promptTime(player, id, "capture time", "koths." + id + ".settings.capture-time-seconds");
         } else if (slot == KOTH_MAX_TIME_SLOT) {
@@ -650,16 +765,19 @@ public final class EditorManager implements Listener {
                 try {
                     save("koths." + id + ".minimum-players", Math.max(0, Integer.parseInt(input)));
                     messages.send(player, "general.saved", Map.of("setting", "minimum players"));
+                    editorSounds.save(player);
                 } catch (NumberFormatException ex) {
                     messages.send(player, "general.invalid-number", Map.of("hint", "Use 0 or higher."));
+                    editorSounds.error(player);
                 }
-                openKoth(player, id);
-            }, () -> openKoth(player, id));
+                openKoth(player, id, false);
+            }, () -> openKoth(player, id, false));
         } else if (slot == KOTH_STARTER_ITEM_SLOT) {
             Optional<ItemStack> cursorItem = CursorItemEditor.cloneItem(cursor);
             if (cursorItem.isEmpty()) {
                 messages.send(player, "editor.cursor-empty");
-                openKoth(player, id);
+                editorSounds.addItemError(player);
+                openKoth(player, id, false);
                 return;
             }
             saveKothValues(id, Map.of(
@@ -667,51 +785,67 @@ public final class EditorManager implements Listener {
                 "starter.enabled", true
             ));
             messages.send(player, "general.saved", Map.of("setting", "starter item"));
-            openKoth(player, id);
+            editorSounds.addItem(player);
+            openKoth(player, id, false);
         } else if (slot == KOTH_TELEPORT_SLOT) {
             if (koth.zone().center() != null) {
                 player.teleport(koth.zone().center());
+                sounds.play(player, "koth.teleported");
             }
         } else if (slot == KOTH_REWARDS_SLOT) {
             openRewardCommands(player, id, 0);
         } else if (slot == KOTH_BOSSBAR_SLOT) {
-            save("koths." + id + ".bossbar.enabled", !koth.bossbar().enabled());
+            boolean enabled = !koth.bossbar().enabled();
+            save("koths." + id + ".bossbar.enabled", enabled);
             messages.send(player, "general.saved", Map.of("setting", "bossbar"));
-            openKoth(player, id);
+            editorSounds.toggle(player, enabled);
+            openKoth(player, id, false);
         } else if (slot == KOTH_SCOREBOARD_SLOT) {
-            save("koths." + id + ".scoreboard.enabled", !koth.scoreboard().enabled());
+            boolean enabled = !koth.scoreboard().enabled();
+            save("koths." + id + ".scoreboard.enabled", enabled);
             messages.send(player, "general.saved", Map.of("setting", "scoreboard"));
-            openKoth(player, id);
+            editorSounds.toggle(player, enabled);
+            openKoth(player, id, false);
         } else if (slot == KOTH_HOLOGRAM_SLOT) {
-            save("koths." + id + ".hologram.enabled", !koth.hologram().enabled());
+            boolean enabled = !koth.hologram().enabled();
+            save("koths." + id + ".hologram.enabled", enabled);
             messages.send(player, "general.saved", Map.of("setting", "hologram"));
-            openKoth(player, id);
+            editorSounds.toggle(player, enabled);
+            openKoth(player, id, false);
         } else if (slot == KOTH_ACTIONBAR_SLOT) {
-            save("koths." + id + ".actionbar.enabled", !koth.actionbar().enabled());
+            boolean enabled = !koth.actionbar().enabled();
+            save("koths." + id + ".actionbar.enabled", enabled);
             messages.send(player, "general.saved", Map.of("setting", "actionbar"));
-            openKoth(player, id);
+            editorSounds.toggle(player, enabled);
+            openKoth(player, id, false);
         } else if (slot == KOTH_TEAM_MODE_SLOT) {
-            save("koths." + id + ".settings.team-mode", !koth.teamMode());
+            boolean enabled = !koth.teamMode();
+            save("koths." + id + ".settings.team-mode", enabled);
             messages.send(player, "general.saved", Map.of("setting", "team mode"));
-            openKoth(player, id);
+            editorSounds.toggle(player, enabled);
+            openKoth(player, id, false);
         } else if (slot == KOTH_DELETE_SLOT) {
             openConfirmDelete(player, id);
         } else if (slot == KOTH_BACK_SLOT) {
-            openKoths(player, 0, "");
+            editorSounds.back(player);
+            openKoths(player, 0, "", false);
         }
     }
 
     private void clickSettings(Player player, int slot) {
         for (String feature : SETTINGS_FEATURES) {
             if (slot == settingsSlot(feature)) {
-                save("features." + feature, !plugin.getConfig().getBoolean("features." + feature, true));
+                boolean enabled = !plugin.getConfig().getBoolean("features." + feature, true);
+                save("features." + feature, enabled);
                 messages.send(player, "general.saved", Map.of("setting", feature));
-                openSettings(player);
+                editorSounds.toggle(player, enabled);
+                openSettings(player, false);
                 return;
             }
         }
         if (slot == SETTINGS_BACK_SLOT) {
-            openMain(player);
+            editorSounds.back(player);
+            openMain(player, false);
         }
     }
 
@@ -719,41 +853,50 @@ public final class EditorManager implements Listener {
         KothSchedule schedule = config.schedules().get(id.toLowerCase(Locale.ROOT));
         if (schedule == null) {
             messages.send(player, "editor.invalid-schedule", Map.of("schedule", id));
-            openSchedules(player);
+            editorSounds.error(player);
+            openSchedules(player, 0, "", false);
             return;
         }
         if (slot == SCHEDULE_TOGGLE_SLOT) {
-            save("schedules." + id + ".enabled", !schedule.enabled());
+            boolean enabled = !schedule.enabled();
+            save("schedules." + id + ".enabled", enabled);
             messages.send(player, "general.saved", Map.of("setting", "schedule enabled"));
-            openSchedule(player, id);
+            editorSounds.toggle(player, enabled);
+            openSchedule(player, id, false);
         } else if (slot == SCHEDULE_CRON_SLOT) {
             prompt(player, "cron", "minute hour day month weekday, ex: 0 18 * * *", input -> {
                 try {
                     new CronExpression(input);
                     save("schedules." + id + ".cron", input.trim());
                     messages.send(player, "general.saved", Map.of("setting", "cron"));
+                    editorSounds.save(player);
                 } catch (RuntimeException ex) {
                     messages.send(player, "editor.invalid-cron", Map.of("error", ex.getMessage() == null ? "Invalid syntax." : ex.getMessage()));
+                    editorSounds.error(player);
                 }
-                openSchedule(player, id);
-            }, () -> openSchedule(player, id));
+                openSchedule(player, id, false);
+            }, () -> openSchedule(player, id, false));
         } else if (slot == SCHEDULE_RANDOM_SLOT) {
             save("schedules." + id + ".random", !schedule.random());
             messages.send(player, "general.saved", Map.of("setting", "random KOTH"));
-            openSchedule(player, id);
+            editorSounds.cycle(player);
+            openSchedule(player, id, false);
         } else if (slot == SCHEDULE_KOTHS_SLOT) {
             prompt(player, "scheduled KOTHs", "ids separated by commas, or clear", input -> {
                 try {
                     List<String> koths = parseScheduleKoths(input);
                     save("schedules." + id + ".koths", koths);
                     messages.send(player, "general.saved", Map.of("setting", "scheduled KOTHs"));
+                    editorSounds.save(player);
                 } catch (IllegalArgumentException ex) {
                     messages.send(player, "general.invalid-koth", Map.of("koth", ex.getMessage()));
+                    editorSounds.error(player);
                 }
-                openSchedule(player, id);
-            }, () -> openSchedule(player, id));
+                openSchedule(player, id, false);
+            }, () -> openSchedule(player, id, false));
         } else if (slot == SCHEDULE_BACK_SLOT) {
-            openSchedules(player);
+            editorSounds.back(player);
+            openSchedules(player, 0, "", false);
         }
     }
 
@@ -828,9 +971,11 @@ public final class EditorManager implements Listener {
         if (slot == CONFIRM_DELETE_SLOT) {
             kothManager.delete(id);
             messages.send(player, "editor.deleted", Map.of("entry", id));
-            openKoths(player, 0, "");
+            editorSounds.delete(player);
+            openKoths(player, 0, "", false);
         } else if (slot == CONFIRM_CANCEL_SLOT) {
-            openKoth(player, id);
+            editorSounds.back(player);
+            openKoth(player, id, false);
         }
     }
 
@@ -839,10 +984,12 @@ public final class EditorManager implements Listener {
             try {
                 save(path, TimeUtil.parseSeconds(input));
                 messages.send(player, "general.saved", Map.of("setting", field));
+                editorSounds.save(player);
             } catch (IllegalArgumentException ex) {
                 messages.send(player, "general.invalid-time");
+                editorSounds.error(player);
             }
-            openKoth(player, id);
+            openKoth(player, id, false);
         }, () -> openKoth(player, id));
     }
 
@@ -858,6 +1005,7 @@ public final class EditorManager implements Listener {
             callback,
             () -> {
                 messages.send(player, "general.cancelled");
+                editorSounds.back(player);
                 cancel.run();
             }
         );

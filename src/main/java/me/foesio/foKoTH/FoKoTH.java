@@ -8,6 +8,9 @@ import me.foesio.core.message.FoMessageService;
 import me.foesio.core.plugin.FoPluginTitle;
 import me.foesio.core.reload.FoReloadRegistry;
 import me.foesio.core.reload.FoReloadResult;
+import me.foesio.core.sound.FoAdminSounds;
+import me.foesio.core.sound.FoEditorSounds;
+import me.foesio.core.sound.FoSoundService;
 import me.foesio.core.text.FoText;
 import me.foesio.core.update.UpdateNoticeService;
 import me.foesio.foKoTH.command.AdminCommand;
@@ -35,6 +38,9 @@ import java.util.Map;
 public final class FoKoTH extends JavaPlugin {
 
     private FoCoreContext core;
+    private FoSoundService sounds;
+    private FoEditorSounds editorSounds;
+    private FoAdminSounds adminSounds;
     private FoMessageService messages;
     private ConfigService configService;
     private JdbcUserDataStore userDataStore;
@@ -50,17 +56,20 @@ public final class FoKoTH extends JavaPlugin {
     public void onEnable() {
         saveDefaults();
 
-        this.messages = FoMessageService.load(this, messageMigrations());
         this.core = FoPluginCore.create(this);
         this.core.warnIfNativeDialogsUnavailable();
+        this.sounds = core.createSounds();
+        this.editorSounds = FoEditorSounds.create(sounds);
+        this.adminSounds = FoAdminSounds.create(sounds);
+        this.messages = FoMessageService.load(this, messageMigrations());
         this.configService = new ConfigService(this, messages);
         this.userDataStore = new JdbcUserDataStore(this, messages, configService);
         this.teamService = new TeamService(this, messages, configService);
         this.webhookService = new WebhookService(this);
-        this.kothManager = new KothManager(this, messages, configService, userDataStore, teamService, webhookService);
+        this.kothManager = new KothManager(this, messages, configService, userDataStore, teamService, webhookService, sounds);
         this.scheduleManager = new ScheduleManager(this, messages, configService, kothManager);
-        this.editorManager = new EditorManager(this, messages, configService, kothManager, scheduleManager);
-        this.updateNotices = core.createUpdateNotices(messages, "fokoth").start();
+        this.editorManager = new EditorManager(this, messages, configService, kothManager, scheduleManager, sounds, editorSounds);
+        this.updateNotices = core.createUpdateNotices(messages, "fokoth", adminSounds).start();
 
         userDataStore.start();
         kothManager.start();
@@ -72,7 +81,7 @@ public final class FoKoTH extends JavaPlugin {
 
         Bukkit.getPluginManager().registerEvents(editorManager, this);
         Bukkit.getPluginManager().registerEvents(new WandListener(this, messages, kothManager), this);
-        Bukkit.getPluginManager().registerEvents(new StarterListener(this, messages, kothManager), this);
+        Bukkit.getPluginManager().registerEvents(new StarterListener(this, messages, kothManager, sounds), this);
         Bukkit.getPluginManager().registerEvents(new PlayerStateListener(kothManager), this);
 
         refreshPlaceholderHook();
@@ -107,6 +116,7 @@ public final class FoKoTH extends JavaPlugin {
     public FoReloadResult reloadFoKoTH() {
         FoReloadResult result = FoReloadRegistry.create()
             .add("config", this::reloadConfigDefaults)
+            .add("sounds", sounds::reload)
             .addMessages(messages)
             .add("core", this::refreshCoreContext)
             .add("settings", configService::reload)
@@ -222,6 +232,18 @@ public final class FoKoTH extends JavaPlugin {
 
     public FoCoreContext core() {
         return core;
+    }
+
+    public FoSoundService sounds() {
+        return sounds;
+    }
+
+    public FoEditorSounds editorSounds() {
+        return editorSounds;
+    }
+
+    public FoAdminSounds adminSounds() {
+        return adminSounds;
     }
 
     public FoMessageService messages() {
