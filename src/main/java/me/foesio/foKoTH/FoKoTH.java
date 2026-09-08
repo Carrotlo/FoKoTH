@@ -62,6 +62,7 @@ public final class FoKoTH extends JavaPlugin {
         this.editorSounds = FoEditorSounds.create(sounds);
         this.adminSounds = FoAdminSounds.create(sounds);
         this.messages = FoMessageService.load(this, messageMigrations());
+        migrateSprites();
         this.configService = new ConfigService(this, messages);
         this.userDataStore = new JdbcUserDataStore(this, messages, configService);
         this.teamService = new TeamService(this, messages, configService);
@@ -188,6 +189,42 @@ public final class FoKoTH extends JavaPlugin {
             .remove("admin.join-update")
             .add(this::backfillBundledMessageDefaults)
             .build();
+    }
+
+    private void migrateSprites() {
+        messages.migrateToVersion(core.migrations(), 1, config -> {
+            boolean changed = false;
+            changed |= FoMessageService.addMissingToken(config, "tokens.prefix", ":beacon:", null);
+            changed |= FoMessageService.addMissingToken(config, "general.unknown-command", ":paper:");
+            changed |= FoMessageService.addMissingToken(config, "general.invalid-syntax", ":paper:");
+            changed |= FoMessageService.addMissingToken(config, "general.saved", ":emerald:");
+            changed |= FoMessageService.addMissingToken(config, "general.reload-failed", ":redstone:");
+            changed |= FoMessageService.addMissingToken(config, "admin.editor-opened", ":book:");
+            changed |= FoMessageService.addMissingToken(config, "koth.created", ":emerald:");
+            changed |= FoMessageService.addMissingToken(config, "koth.deleted", ":lava_bucket:");
+            changed |= FoMessageService.addMissingToken(config, "koth.started", ":beacon:");
+            changed |= FoMessageService.addMissingToken(config, "koth.stopped", ":redstone:");
+            changed |= FoMessageService.addMissingToken(config, "broadcasts.capture-start", ":clock:");
+            changed |= FoMessageService.addMissingToken(config, "broadcasts.captured", ":emerald:");
+            changed |= FoMessageService.addMissingToken(config, "editor.added", ":emerald:");
+            changed |= FoMessageService.addMissingToken(config, "editor.deleted", ":lava_bucket:");
+            return changed;
+        });
+        messages.migrateToVersion(core.migrations(), 2, config -> {
+            String oldPrefix = ":beacon: &#03fc88FoKoTH &8» &#a7b8b0";
+            if (!oldPrefix.equals(config.getString("tokens.prefix"))) {
+                return true;
+            }
+            config.set("tokens.prefix", ":golden_helmet: &#03fc88FoKoTH &8» &#a7b8b0");
+            return true;
+        });
+        messages.migrateToVersion(core.migrations(), 3, config -> {
+            boolean changed = false;
+            changed |= FoMessageService.addMissingToken(config, "broadcasts.start", ":beacon:");
+            changed |= FoMessageService.addMissingToken(config, "broadcasts.started-with-starter", ":beacon:");
+            return changed;
+        });
+        messages.reload();
     }
 
     private boolean backfillBundledMessageDefaults(FileConfiguration config) {

@@ -136,16 +136,16 @@ public final class EditorManager implements Listener {
     private void openMain(Player player, boolean playOpen) {
         Inventory inventory = Bukkit.createInventory(new EditorHolder(EditorPage.MAIN, "", 0, ""), MAIN_SIZE, title("FoKoTH Editor"));
         fill(inventory);
-        set(inventory, MAIN_KOTHS_SLOT, item(Material.BEACON, FoStyle.THEME + "KOTHs", List.of(
+        set(inventory, MAIN_KOTHS_SLOT, button(player, FoStyle.THEME, Material.BEACON, "KOTHs", List.of(
             FoStyle.WHITE + "Browse and edit events."
-        )));
-        set(inventory, MAIN_SCHEDULES_SLOT, item(Material.CLOCK, FoStyle.THEME + "Schedules", List.of(
+        ), "browse KOTHs"));
+        set(inventory, MAIN_SCHEDULES_SLOT, button(player, FoStyle.THEME, Material.CLOCK, "Schedules", List.of(
             FoStyle.WHITE + "Auto-start KOTHs by time.",
             FoStyle.WHITE + "Uses server timezone."
-        )));
-        set(inventory, MAIN_SETTINGS_SLOT, item(Material.COMPARATOR, FoStyle.THEME + "Settings", List.of(
+        ), "manage schedules"));
+        set(inventory, MAIN_SETTINGS_SLOT, button(player, FoStyle.THEME, Material.COMPARATOR, "Settings", List.of(
             FoStyle.WHITE + "Toggle global features."
-        )));
+        ), "edit settings"));
         player.openInventory(inventory);
         if (playOpen) {
             editorSounds.open(player);
@@ -159,12 +159,12 @@ public final class EditorManager implements Listener {
     private void openKoths(Player player, int page, String search, boolean playOpen) {
         List<KothConfig> entries = kothBrowserEntries(search);
         List<EntryBrowserRequest.Entry> browserEntries = entries.stream()
-                .map(koth -> EntryBrowserRequest.Entry.of(koth.id(), item(Material.BEACON, FoStyle.THEME + koth.id(), List.of(
+                .map(koth -> EntryBrowserRequest.Entry.of(koth.id(), button(player, FoStyle.THEME, Material.BEACON, koth.id(), List.of(
                 FoStyle.WHITE + "Mode: " + FoStyle.THEME + koth.mode().name(),
                 FoStyle.WHITE + "Active: " + FoStyle.THEME + kothManager.isActive(koth.id()),
                 "",
                 FoStyle.WHITE + "Click to edit."
-            )))).toList();
+            ), "edit the KOTH"))).toList();
         EntryBrowserMenus.open(player, EntryBrowserRequest.builder()
                 .title("KOTHs")
                 .entries(browserEntries)
@@ -172,9 +172,9 @@ public final class EditorManager implements Listener {
                 .filter(search)
                 .buttons(buttons)
                 .showBack(true)
-                .addButton(item(Material.ANVIL, FoStyle.GOOD + "Add KOTH", List.of(
-                        FoStyle.WHITE + "Create new event.")))
-                .emptyItem(item(Material.PAPER, FoStyle.BAD + "No KOTHs", List.of(
+                .addButton(button(player, FoStyle.GOOD, Material.ANVIL, "Add KOTH", List.of(
+                        FoStyle.WHITE + "Create new event."), "add a KOTH"))
+                .emptyItem(item(player, Material.PAPER, FoStyle.BAD + "No KOTHs", List.of(
                         FoStyle.WHITE + "No KOTHs match the current search.")))
                 .context(new KothBrowserContext())
                 .build());
@@ -196,56 +196,56 @@ public final class EditorManager implements Listener {
         }
         Inventory inventory = Bukkit.createInventory(new EditorHolder(EditorPage.KOTH_EDIT, koth.id(), 0, ""), KOTH_EDIT_SIZE, title("Edit KOTH"));
         fill(inventory);
-        set(inventory, KOTH_TOGGLE_SLOT, toggleItem(koth.enabled(), "Enabled", List.of(
+        set(inventory, KOTH_TOGGLE_SLOT, toggleItem(player, koth.enabled(), "Enabled", List.of(
             FoStyle.WHITE + "Current: " + enabledColor(koth.enabled()) + enabledText(koth.enabled())
         )));
-        set(inventory, KOTH_MODE_SLOT, item(Material.REPEATER, FoStyle.THEME + "Mode", List.of(
+        set(inventory, KOTH_MODE_SLOT, button(player, FoStyle.THEME, Material.REPEATER, "Mode", List.of(
             FoStyle.WHITE + "Current: " + FoStyle.THEME + koth.mode().name(),
             FoStyle.WHITE + "CAPTURE",
             FoStyle.WHITE + "SCORE"
-        )));
-        set(inventory, KOTH_DISPLAY_NAME_SLOT, item(Material.NAME_TAG, FoStyle.THEME + "Display Name", List.of(
+        ), "cycle KOTH mode"));
+        set(inventory, KOTH_DISPLAY_NAME_SLOT, button(player, FoStyle.THEME, Material.NAME_TAG, "Display Name", List.of(
             FoStyle.WHITE + "Current:",
             FoStyle.THEME + koth.displayName()
-        )));
-        set(inventory, KOTH_CAPTURE_TIME_SLOT, item(Material.CLOCK, FoStyle.THEME + "Capture Time", List.of(
+        ), "edit the display name"));
+        set(inventory, KOTH_CAPTURE_TIME_SLOT, button(player, FoStyle.THEME, Material.CLOCK, "Capture Time", List.of(
             FoStyle.WHITE + "Current: " + FoStyle.THEME + TimeUtil.format(koth.captureTimeSeconds(), config.timerFormat())
-        )));
-        set(inventory, KOTH_MAX_TIME_SLOT, item(Material.CLOCK, FoStyle.THEME + "Max Time", List.of(
+        ), "edit capture time"));
+        set(inventory, KOTH_MAX_TIME_SLOT, button(player, FoStyle.THEME, Material.CLOCK, "Max Time", List.of(
             FoStyle.WHITE + "Current: " + FoStyle.THEME + TimeUtil.format(koth.maxTimeSeconds(), config.timerFormat())
-        )));
-        set(inventory, KOTH_MINIMUM_PLAYERS_SLOT, item(Material.PLAYER_HEAD, FoStyle.THEME + "Minimum Players", List.of(
+        ), "edit maximum time"));
+        set(inventory, KOTH_MINIMUM_PLAYERS_SLOT, button(player, FoStyle.THEME, Material.PLAYER_HEAD, "Minimum Players", List.of(
             FoStyle.WHITE + "Current: " + FoStyle.THEME + koth.minimumPlayers()
-        )));
-        set(inventory, KOTH_STARTER_ITEM_SLOT, item(starterMaterial(koth), FoStyle.THEME + "Starter Item", List.of(
+        ), "edit minimum players"));
+        set(inventory, KOTH_STARTER_ITEM_SLOT, button(player, FoStyle.THEME, starterMaterial(koth), "Starter Item", List.of(
             FoStyle.WHITE + "Click with a item in your cursor."
-        )));
-        set(inventory, KOTH_TELEPORT_SLOT, item(Material.COMPASS, FoStyle.THEME + "Teleport", List.of(
+        ), "set the starter item"));
+        set(inventory, KOTH_TELEPORT_SLOT, button(player, FoStyle.THEME, Material.COMPASS, "Teleport", List.of(
             FoStyle.WHITE + "Teleport to center."
-        )));
-        set(inventory, KOTH_REWARDS_SLOT, item(Material.CHEST, FoStyle.THEME + "Rewards", List.of(
+        ), "teleport to the KOTH"));
+        set(inventory, KOTH_REWARDS_SLOT, button(player, FoStyle.THEME, Material.CHEST, "Rewards", List.of(
             FoStyle.WHITE + "Edit command rewards."
-        )));
-        set(inventory, KOTH_BOSSBAR_SLOT, item(Material.ITEM_FRAME, enabledColor(koth.bossbar().enabled()) + "Bossbar", List.of(
+        ), "manage rewards"));
+        set(inventory, KOTH_BOSSBAR_SLOT, button(player, enabledColor(koth.bossbar().enabled()), Material.ITEM_FRAME, "Bossbar", List.of(
             FoStyle.WHITE + "Current: " + enabledText(koth.bossbar().enabled())
-        )));
-        set(inventory, KOTH_SCOREBOARD_SLOT, item(Material.MAP, enabledColor(koth.scoreboard().enabled()) + "Scoreboard", List.of(
+        ), "toggle the bossbar"));
+        set(inventory, KOTH_SCOREBOARD_SLOT, button(player, enabledColor(koth.scoreboard().enabled()), Material.MAP, "Scoreboard", List.of(
             FoStyle.WHITE + "Current: " + enabledText(koth.scoreboard().enabled())
-        )));
-        set(inventory, KOTH_HOLOGRAM_SLOT, item(Material.ARMOR_STAND, enabledColor(koth.hologram().enabled()) + "Hologram", List.of(
+        ), "toggle the scoreboard"));
+        set(inventory, KOTH_HOLOGRAM_SLOT, button(player, enabledColor(koth.hologram().enabled()), Material.ARMOR_STAND, "Hologram", List.of(
             FoStyle.WHITE + "Current: " + enabledText(koth.hologram().enabled())
-        )));
-        set(inventory, KOTH_ACTIONBAR_SLOT, item(Material.WRITABLE_BOOK, enabledColor(koth.actionbar().enabled()) + "Actionbar", List.of(
+        ), "toggle the hologram"));
+        set(inventory, KOTH_ACTIONBAR_SLOT, button(player, enabledColor(koth.actionbar().enabled()), Material.WRITABLE_BOOK, "Actionbar", List.of(
             FoStyle.WHITE + "Current: " + enabledText(koth.actionbar().enabled()),
             FoStyle.WHITE + "Shows while a player is capturing."
-        )));
-        set(inventory, KOTH_TEAM_MODE_SLOT, item(Material.SHIELD, enabledColor(koth.teamMode()) + "Team Mode", List.of(
+        ), "toggle the actionbar"));
+        set(inventory, KOTH_TEAM_MODE_SLOT, button(player, enabledColor(koth.teamMode()), Material.SHIELD, "Team Mode", List.of(
             FoStyle.WHITE + "Current: " + enabledText(koth.teamMode())
-        )));
-        set(inventory, KOTH_DELETE_SLOT, item(Material.LAVA_BUCKET, FoStyle.BAD + "Delete", List.of(
+        ), "toggle team mode"));
+        set(inventory, KOTH_DELETE_SLOT, button(player, FoStyle.BAD, Material.LAVA_BUCKET, "Delete", List.of(
             FoStyle.WHITE + "Delete this KOTH."
-        )));
-        set(inventory, KOTH_BACK_SLOT, buttons.back());
+        ), "delete the KOTH"));
+        set(inventory, KOTH_BACK_SLOT, buttons.back(player));
         player.openInventory(inventory);
         if (playOpen) {
             editorSounds.open(player);
@@ -276,14 +276,14 @@ public final class EditorManager implements Listener {
             if (!normalizedSearch.isBlank() && !safeCommand.toLowerCase(Locale.ROOT).contains(normalizedSearch)) {
                 continue;
             }
-            entries.add(EntryBrowserRequest.Entry.of(String.valueOf(commandIndex), item(Material.COMMAND_BLOCK,
-                    FoStyle.THEME + "Command #" + (commandIndex + 1), List.of(
+            entries.add(EntryBrowserRequest.Entry.of(String.valueOf(commandIndex), button(player, FoStyle.THEME, Material.COMMAND_BLOCK,
+                    "Command #" + (commandIndex + 1), List.of(
                 FoStyle.WHITE + "Current:",
                 FoStyle.THEME + (command == null ? "" : command),
                 "",
                 FoStyle.WHITE + "Left-click to edit.",
                 FoStyle.WHITE + "Right-click to delete."
-            ))));
+            ), "edit the command")));
         }
         EntryBrowserMenus.open(player, EntryBrowserRequest.builder()
                 .title("Reward Commands")
@@ -292,9 +292,9 @@ public final class EditorManager implements Listener {
                 .filter(normalizedSearch)
                 .buttons(buttons)
                 .showBack(true)
-                .addButton(item(Material.ANVIL, FoStyle.GOOD + "Add Command", List.of(
-                        FoStyle.WHITE + "Add one console command.")))
-                .emptyItem(item(Material.PAPER, FoStyle.BAD + "No Commands", List.of(
+                .addButton(button(player, FoStyle.GOOD, Material.ANVIL, "Add Command", List.of(
+                        FoStyle.WHITE + "Add one console command."), "add a command"))
+                .emptyItem(item(player, Material.PAPER, FoStyle.BAD + "No Commands", List.of(
                         FoStyle.WHITE + "Use Add Command to create one.")))
                 .context(new RewardBrowserContext(koth.id()))
                 .build());
@@ -312,11 +312,11 @@ public final class EditorManager implements Listener {
         fill(inventory);
         for (String feature : SETTINGS_FEATURES) {
             boolean enabled = plugin.getConfig().getBoolean("features." + feature, true);
-            set(inventory, settingsSlot(feature), toggleItem(enabled, featureDisplayName(feature), List.of(
+            set(inventory, settingsSlot(feature), toggleItem(player, enabled, featureDisplayName(feature), List.of(
                 FoStyle.WHITE + "Current: " + enabledColor(enabled) + enabledText(enabled)
             )));
         }
-        set(inventory, SETTINGS_BACK_SLOT, buttons.back());
+        set(inventory, SETTINGS_BACK_SLOT, buttons.back(player));
         player.openInventory(inventory);
         if (playOpen) {
             editorSounds.open(player);
@@ -341,7 +341,7 @@ public final class EditorManager implements Listener {
                 .filter(schedule -> normalizedSearch.isBlank() || schedule.id().toLowerCase(Locale.ROOT).contains(normalizedSearch))
                 .toList();
         List<EntryBrowserRequest.Entry> browserEntries = entries.stream()
-                .map(schedule -> EntryBrowserRequest.Entry.of(schedule.id(), item(Material.CLOCK, FoStyle.THEME + schedule.id(), List.of(
+                .map(schedule -> EntryBrowserRequest.Entry.of(schedule.id(), button(player, FoStyle.THEME, Material.CLOCK, schedule.id(), List.of(
                 FoStyle.WHITE + "State: " + enabledColor(schedule.enabled()) + enabledText(schedule.enabled()),
                 FoStyle.WHITE + "Cron: " + FoStyle.THEME + schedule.cron(),
                 FoStyle.WHITE + "Next: " + FoStyle.THEME + nextScheduleText(schedule),
@@ -349,7 +349,7 @@ public final class EditorManager implements Listener {
                 FoStyle.WHITE + "KOTHs: " + FoStyle.THEME + joinedKoths(schedule),
                 "",
                 FoStyle.WHITE + "Click to edit."
-            )))).toList();
+            ), "edit the schedule"))).toList();
         EntryBrowserMenus.open(player, EntryBrowserRequest.builder()
                 .title("Schedules")
                 .entries(browserEntries)
@@ -357,9 +357,9 @@ public final class EditorManager implements Listener {
                 .filter(normalizedSearch)
                 .buttons(buttons)
                 .showBack(true)
-                .addButton(item(Material.ANVIL, FoStyle.GOOD + "Add Schedule", List.of(
-                        FoStyle.WHITE + "Create timed auto-start.")))
-                .emptyItem(item(Material.PAPER, FoStyle.BAD + "No Schedules", List.of(
+                .addButton(button(player, FoStyle.GOOD, Material.ANVIL, "Add Schedule", List.of(
+                        FoStyle.WHITE + "Create timed auto-start."), "add a schedule"))
+                .emptyItem(item(player, Material.PAPER, FoStyle.BAD + "No Schedules", List.of(
                         FoStyle.WHITE + "No schedules have been configured.")))
                 .context(new ScheduleBrowserContext())
                 .build());
@@ -381,30 +381,30 @@ public final class EditorManager implements Listener {
         }
         Inventory inventory = Bukkit.createInventory(new EditorHolder(EditorPage.SCHEDULE_EDIT, schedule.id(), 0, ""), SCHEDULE_EDIT_SIZE, title("Edit Schedule"));
         fill(inventory);
-        set(inventory, SCHEDULE_TOGGLE_SLOT, toggleItem(schedule.enabled(), "Enabled", List.of(
+        set(inventory, SCHEDULE_TOGGLE_SLOT, toggleItem(player, schedule.enabled(), "Enabled", List.of(
             FoStyle.WHITE + "Schedule: " + FoStyle.THEME + schedule.id(),
             FoStyle.WHITE + "Current: " + enabledColor(schedule.enabled()) + enabledText(schedule.enabled()),
             FoStyle.WHITE + "Disabled schedules never run."
         )));
-        set(inventory, SCHEDULE_CRON_SLOT, item(Material.CLOCK, FoStyle.THEME + "Cron", List.of(
+        set(inventory, SCHEDULE_CRON_SLOT, button(player, FoStyle.THEME, Material.CLOCK, "Cron", List.of(
             FoStyle.WHITE + "Current:",
             FoStyle.THEME + schedule.cron(),
             FoStyle.WHITE + "Next: " + FoStyle.THEME + nextScheduleText(schedule),
             FoStyle.WHITE + "Format: minute hour day month weekday.",
             FoStyle.WHITE + "Example: 0 18 * * * = daily 18:00."
-        )));
-        set(inventory, SCHEDULE_RANDOM_SLOT, item(Material.ENDER_EYE, enabledColor(schedule.random()) + "Run Mode", List.of(
+        ), "edit the schedule expression"));
+        set(inventory, SCHEDULE_RANDOM_SLOT, button(player, enabledColor(schedule.random()), Material.ENDER_EYE, "Run Mode", List.of(
             FoStyle.WHITE + "Current: " + FoStyle.THEME + scheduleMode(schedule),
             FoStyle.WHITE + "Off: start every listed KOTH.",
             FoStyle.WHITE + "On: pick one random listed KOTH."
-        )));
-        set(inventory, SCHEDULE_KOTHS_SLOT, item(Material.BEACON, FoStyle.THEME + "KOTHs", List.of(
+        ), "cycle the run mode"));
+        set(inventory, SCHEDULE_KOTHS_SLOT, button(player, FoStyle.THEME, Material.BEACON, "KOTHs", List.of(
             FoStyle.WHITE + "Current:",
             FoStyle.THEME + joinedKoths(schedule),
             FoStyle.WHITE + "These are KOTH ids, not display names.",
             FoStyle.WHITE + "Comma separate ids, or type clear."
-        )));
-        set(inventory, SCHEDULE_BACK_SLOT, buttons.back());
+        ), "edit scheduled KOTHs"));
+        set(inventory, SCHEDULE_BACK_SLOT, buttons.back(player));
         player.openInventory(inventory);
         if (playOpen) {
             editorSounds.open(player);
@@ -414,12 +414,12 @@ public final class EditorManager implements Listener {
     public void openConfirmDelete(Player player, String kothId) {
         Inventory inventory = Bukkit.createInventory(new EditorHolder(EditorPage.CONFIRM_DELETE, kothId, 0, ""), CONFIRM_SIZE, title("Confirm"));
         fill(inventory);
-        set(inventory, CONFIRM_DELETE_SLOT, item(Material.LIME_CONCRETE, FoStyle.GOOD + "Confirm", List.of(
+        set(inventory, CONFIRM_DELETE_SLOT, button(player, FoStyle.GOOD, Material.LIME_CONCRETE, "Confirm", List.of(
             FoStyle.WHITE + "Delete entry."
-        )));
-        set(inventory, CONFIRM_CANCEL_SLOT, item(Material.RED_CONCRETE, FoStyle.BAD + "Cancel", List.of(
+        ), "confirm deletion"));
+        set(inventory, CONFIRM_CANCEL_SLOT, button(player, FoStyle.BAD, Material.RED_CONCRETE, "Cancel", List.of(
             FoStyle.WHITE + "Return."
-        )));
+        ), "cancel deletion"));
         player.openInventory(inventory);
         editorSounds.open(player);
     }
@@ -1048,7 +1048,9 @@ public final class EditorManager implements Listener {
 
     private boolean warnNativeFallbackIfNeeded(Player player) {
         NativeDialogAvailability availability = plugin.core().nativeDialogs().availability();
-        if (!availability.configEnabled() || availability.canUseNativeDialogs() || !plugin.core().nativeDialogs().warnOnFallback()) {
+        if (!availability.configEnabled()
+                || plugin.core().nativeDialogs().canUseNativeDialogs(player)
+                || !plugin.core().nativeDialogs().warnOnFallback()) {
             return false;
         }
         if (!player.hasPermission("fokoth.admin")) {
@@ -1101,8 +1103,12 @@ public final class EditorManager implements Listener {
         }
     }
 
-    private ItemStack item(Material material, String name, List<String> lore) {
-        return EditorItemFactory.item(material, name, lore);
+    private ItemStack item(Player player, Material material, String name, List<String> lore) {
+        return EditorItemFactory.item(player, material, name, lore);
+    }
+
+    private ItemStack button(Player player, String color, Material material, String name, List<String> information, String action) {
+        return EditorItemFactory.button(player, material, color, name, information, action);
     }
 
     private record KothBrowserContext() {
@@ -1114,8 +1120,9 @@ public final class EditorManager implements Listener {
     private record RewardBrowserContext(String kothId) {
     }
 
-    private ItemStack toggleItem(boolean enabled, String name, List<String> lore) {
-        return item(enabled ? Material.LIME_DYE : Material.RED_DYE, enabledColor(enabled) + name, lore);
+    private ItemStack toggleItem(Player player, boolean enabled, String name, List<String> lore) {
+        return button(player, enabledColor(enabled), enabled ? Material.LIME_DYE : Material.RED_DYE, name, lore,
+                "toggle " + name.toLowerCase(Locale.ROOT));
     }
 
     private Material starterMaterial(KothConfig koth) {

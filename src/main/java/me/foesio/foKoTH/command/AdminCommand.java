@@ -54,7 +54,6 @@ public final class AdminCommand implements CommandExecutor, TabCompleter {
     }
 
     private void version(CommandSender sender) {
-        plugin.messages().send(sender, "admin.version", Map.of("version", plugin.getDescription().getVersion()));
         plugin.updateNotices().checkAndSendVersion(sender);
     }
 

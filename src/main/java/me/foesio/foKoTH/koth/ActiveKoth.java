@@ -396,7 +396,7 @@ public final class ActiveKoth {
             for (Map.Entry<?, ?> entry : map.entrySet()) {
                 memory.set(String.valueOf(entry.getKey()), entry.getValue());
             }
-            ItemStack item = ItemDefinition.from(memory, Material.DIAMOND).build(plugin, messages, placeholders(player));
+            ItemStack item = ItemDefinition.from(memory, Material.DIAMOND).build(plugin, messages, player, placeholders(player));
             inventoryDeposit.deposit(player, item, player.getLocation(), OverflowPolicy.DROP_OVERFLOW);
         }
     }
@@ -417,7 +417,7 @@ public final class ActiveKoth {
                     for (Map.Entry<?, ?> entry : map.entrySet()) {
                         memory.set(String.valueOf(entry.getKey()), entry.getValue());
                     }
-                    ItemStack item = ItemDefinition.from(memory, Material.DIAMOND).build(plugin, messages, placeholders(player));
+                    ItemStack item = ItemDefinition.from(memory, Material.DIAMOND).build(plugin, messages, player, placeholders(player));
                     inventoryDeposit.deposit(player, item, player.getLocation(), OverflowPolicy.DROP_OVERFLOW);
                 }
             } catch (NumberFormatException ignored) {
@@ -437,14 +437,15 @@ public final class ActiveKoth {
         if (template.isBlank()) {
             return;
         }
-        String message = renderTemplate(apply(template, placeholders(currentCapturer())));
+        Map<String, String> placeholderValues = placeholders(currentCapturer());
+        String appliedTemplate = apply(template, placeholderValues);
         Location center = config.zone().center();
         for (Player player : Bukkit.getOnlinePlayers()) {
             if (canView(player, config.broadcastDistance(), center)) {
-                player.sendMessage(message);
+                player.sendMessage(messages.renderTemplateComponent(player, appliedTemplate, Map.of()));
             }
         }
-        plugin.getLogger().info(ChatColor.stripColor(message));
+        plugin.getLogger().info(ChatColor.stripColor(messages.renderTemplate(appliedTemplate, Map.of())));
     }
 
     private void webhook(String key) {

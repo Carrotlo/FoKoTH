@@ -218,6 +218,10 @@ public final class KothManager {
     }
 
     public ItemStack starter(KothConfig koth) {
+        return starter(koth, null);
+    }
+
+    public ItemStack starter(KothConfig koth, Player viewer) {
         Map<String, String> replacements = new HashMap<>();
         Location center = koth.zone().center();
         replacements.put("name", koth.id());
@@ -228,7 +232,7 @@ public final class KothManager {
         replacements.put("z", center == null ? "0" : String.valueOf(center.getBlockZ()));
         replacements.put("time_formatted", me.foesio.foKoTH.util.TimeUtil.format(koth.captureTimeSeconds(), config.timerFormat()));
         replacements.put("maxTime_formatted", me.foesio.foKoTH.util.TimeUtil.format(koth.maxTimeSeconds(), config.timerFormat()));
-        return koth.starterItem().buildStarter(plugin, messages, koth.id(), replacements);
+        return koth.starterItem().buildStarter(plugin, messages, viewer, koth.id(), replacements);
     }
 
     public boolean starterItemsEnabled() {

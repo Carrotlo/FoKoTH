@@ -268,7 +268,7 @@ public final class KothCommand implements CommandExecutor, TabCompleter {
             plugin.messages().send(sender, "general.invalid-number", Map.of("hint", "Use item amount."));
             return;
         }
-        ItemStack item = plugin.kothManager().starter(koth);
+        ItemStack item = plugin.kothManager().starter(koth, target);
         List<ItemStack> stacks = new java.util.ArrayList<>();
         int remaining = amount;
         while (remaining > 0) {
