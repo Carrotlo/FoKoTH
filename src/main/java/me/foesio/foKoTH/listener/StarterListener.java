@@ -1,6 +1,7 @@
 package me.foesio.foKoTH.listener;
 
 import me.foesio.foKoTH.config.KothConfig;
+import me.foesio.foKoTH.api.KothActionResult;
 import me.foesio.core.sound.FoSoundService;
 import me.foesio.foKoTH.koth.KothManager;
 import me.foesio.core.message.FoMessageService;
@@ -50,8 +51,12 @@ public final class StarterListener implements Listener {
             sounds.play(event.getPlayer(), "koth.starter-disabled");
             return;
         }
-        if (kothManager.start(id, event.getPlayer(), KothManager.StartReason.STARTER)) {
+        KothActionResult result = kothManager.startDetailed(id, event.getPlayer(), KothManager.StartReason.STARTER);
+        if (result == KothActionResult.STARTED) {
             consumeStarter(event);
+        } else if (result == KothActionResult.CANCELLED) {
+            messages.send(event.getPlayer(), "koth.start-cancelled", Map.of("koth", id));
+            sounds.play(event.getPlayer(), "koth.starter-error");
         }
     }
 

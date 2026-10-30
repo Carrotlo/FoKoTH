@@ -53,6 +53,7 @@ storage:
 hooks:
   # none, bukkit, BetterTeams, FactionsUUID, GangsPlus, Guilds, KingdomsX,
   # SaberFactions, SuperiorSkyblock2, Towny Advanced, UltimateClans, Parties, AxParties, ZelTeams, FoTeams
+  # A registered custom team resolver ID is also accepted (see API.md).
   team-plugin: none
 
 hook-settings:

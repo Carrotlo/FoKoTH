@@ -5,6 +5,11 @@ import me.foesio.core.inventory.OverflowPolicy;
 import me.foesio.core.message.FoMessageService;
 import me.foesio.core.sound.FoSoundService;
 import me.foesio.foKoTH.FoKoTH;
+import me.foesio.foKoTH.api.HillStatus;
+import me.foesio.foKoTH.api.KothActionResult;
+import me.foesio.foKoTH.api.ParticipationRule;
+import me.foesio.foKoTH.api.event.FoKothFinishReason;
+import me.foesio.foKoTH.api.event.FoKothPreStartEvent;
 import me.foesio.foKoTH.config.ConfigService;
 import me.foesio.foKoTH.config.KothConfig;
 import me.foesio.foKoTH.hook.TeamService;
@@ -21,11 +26,17 @@ import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.persistence.PersistentDataType;
+import org.bukkit.plugin.Plugin;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 public final class KothManager {
@@ -33,7 +44,8 @@ public final class KothManager {
     public enum StartReason {
         COMMAND,
         STARTER,
-        SCHEDULE
+        SCHEDULE,
+        API
     }
 
     private final FoKoTH plugin;
@@ -47,7 +59,12 @@ public final class KothManager {
     private final NamespacedKey wandKey;
     private final NamespacedKey starterKey;
     private final Map<String, ActiveKoth> active = new HashMap<>();
+    private final Set<String> pendingStarts = new HashSet<>();
     private final Map<UUID, Selection> selections = new HashMap<>();
+    private final Map<Plugin, ParticipationRule> participationRules = new LinkedHashMap<>();
+    private List<RuleBinding> participationRuleSnapshot = List.of();
+    private final Set<Plugin> failedRules = new HashSet<>();
+    private record RuleBinding(Plugin owner, ParticipationRule rule) {}
     private boolean ticking;
     private boolean drawingParticles;
     private long tickGeneration;
@@ -84,7 +101,7 @@ public final class KothManager {
             }
             KothConfig updated = config.koth(id);
             if (updated == null || !updated.enabled() || !updated.zone().valid()) {
-                stop(id, true);
+                stopDetailed(id, FoKothFinishReason.RELOAD, true);
             } else {
                 event.updateConfig(updated);
             }
@@ -99,50 +116,111 @@ public final class KothManager {
     }
 
     public boolean start(String id, Player starter, StartReason reason) {
+        return startDetailed(id, starter, reason) == KothActionResult.STARTED;
+    }
+
+    public KothActionResult startDetailed(String id, Player starter, StartReason reason) {
         if (id == null || id.isBlank()) {
-            return false;
+            return KothActionResult.NOT_FOUND;
         }
+        StartReason effectiveReason = reason == null ? StartReason.COMMAND : reason;
         String key = id.toLowerCase(Locale.ROOT);
         KothConfig koth = config.koth(key);
-        if (koth == null || !koth.enabled() || !koth.zone().valid()) {
+        if (koth == null) {
             if (starter != null) {
                 messages.send(starter, "general.invalid-koth", Map.of("koth", id));
             }
-            return false;
+            return KothActionResult.NOT_FOUND;
         }
-        if (active.containsKey(key)) {
+        if (!koth.enabled() || !koth.zone().valid()) {
+            if (starter != null) {
+                messages.send(starter, "general.invalid-koth", Map.of("koth", id));
+            }
+            return !koth.enabled() ? KothActionResult.DISABLED : KothActionResult.INVALID_ZONE;
+        }
+        ActiveKoth existing = active.get(key);
+        if (existing != null && existing.stopped()) {
+            active.remove(key, existing);
+            existing = null;
+        }
+        if (existing != null || pendingStarts.contains(key)) {
             if (starter != null) {
                 messages.send(starter, "koth.already-running", Map.of("koth", id));
             }
-            return false;
+            return KothActionResult.ALREADY_ACTIVE;
         }
-        if ((reason == StartReason.STARTER || reason == StartReason.SCHEDULE) && koth.minimumPlayers() > Bukkit.getOnlinePlayers().size()) {
+        if ((effectiveReason == StartReason.STARTER || effectiveReason == StartReason.SCHEDULE) && koth.minimumPlayers() > Bukkit.getOnlinePlayers().size()) {
             if (starter != null) {
                 messages.send(starter, "koth.minimum-players", Map.of("minimum", String.valueOf(koth.minimumPlayers())));
             }
-            return false;
+            return KothActionResult.INSUFFICIENT_PLAYERS;
         }
-        ActiveKoth event = new ActiveKoth(plugin, messages, config, userData, teamService, webhookService, sounds, koth, starter);
+        FoKothPreStartEvent preStart = new FoKothPreStartEvent(koth.id(), FoKothPreStartEvent.Cause.valueOf(effectiveReason.name()), starter);
+        pendingStarts.add(key);
+        try {
+            Bukkit.getPluginManager().callEvent(preStart);
+        } finally {
+            pendingStarts.remove(key);
+        }
+        if (preStart.isCancelled()) {
+            return KothActionResult.CANCELLED;
+        }
+        existing = active.get(key);
+        if (existing != null && existing.stopped()) {
+            active.remove(key, existing);
+            existing = null;
+        }
+        if (existing != null) {
+            return KothActionResult.ALREADY_ACTIVE;
+        }
+        koth = config.koth(key);
+        if (koth == null) {
+            return KothActionResult.NOT_FOUND;
+        }
+        if (!koth.enabled()) {
+            return KothActionResult.DISABLED;
+        }
+        if (!koth.zone().valid()) {
+            return KothActionResult.INVALID_ZONE;
+        }
+        if ((effectiveReason == StartReason.STARTER || effectiveReason == StartReason.SCHEDULE) && koth.minimumPlayers() > Bukkit.getOnlinePlayers().size()) {
+            return KothActionResult.INSUFFICIENT_PLAYERS;
+        }
+        ActiveKoth event = new ActiveKoth(plugin, messages, config, userData, teamService, webhookService, sounds, koth, starter, this::mayContest);
         active.put(key, event);
         event.start();
-        return true;
+        return KothActionResult.STARTED;
     }
 
     public boolean stop(String id, boolean sendBroadcast) {
+        return stopDetailed(id, FoKothFinishReason.MANUAL, sendBroadcast) == KothActionResult.STOPPED;
+    }
+
+    public KothActionResult stopDetailed(String id, FoKothFinishReason reason, boolean sendBroadcast) {
+        java.util.Objects.requireNonNull(reason, "reason");
         if (id == null || id.isBlank()) {
-            return false;
+            return KothActionResult.NOT_FOUND;
         }
-        ActiveKoth event = active.remove(id.toLowerCase(Locale.ROOT));
+        String key = id.toLowerCase(Locale.ROOT);
+        ActiveKoth event = active.get(key);
         if (event == null) {
-            return false;
+            return config.koth(id) == null ? KothActionResult.NOT_FOUND : KothActionResult.NOT_ACTIVE;
         }
-        event.stop(false, sendBroadcast);
-        return true;
+        if (event.stopped()) {
+            return KothActionResult.NOT_ACTIVE;
+        }
+        active.remove(key);
+        event.stop(reason, sendBroadcast);
+        return KothActionResult.STOPPED;
     }
 
     public void stopAll(boolean sendBroadcast) {
+        stopAll(FoKothFinishReason.MANUAL, sendBroadcast);
+    }
+
+    public void stopAll(FoKothFinishReason reason, boolean sendBroadcast) {
         for (String id : active.keySet().toArray(String[]::new)) {
-            stop(id, sendBroadcast);
+            stopDetailed(id, reason, sendBroadcast);
         }
     }
 
@@ -150,7 +228,7 @@ public final class KothManager {
         if (player == null) {
             return;
         }
-        for (ActiveKoth event : active.values()) {
+        for (ActiveKoth event : List.copyOf(active.values())) {
             event.handleDeath(player);
         }
     }
@@ -165,7 +243,7 @@ public final class KothManager {
         }
         String key = id.toLowerCase(Locale.ROOT);
         if (active.containsKey(key)) {
-            stop(key, true);
+            stopDetailed(key, FoKothFinishReason.DELETED, true);
         }
         if (config.koth(key) == null) {
             return false;
@@ -189,11 +267,78 @@ public final class KothManager {
         if (id == null || id.isBlank()) {
             return false;
         }
-        return active.containsKey(id.toLowerCase(Locale.ROOT));
+        ActiveKoth event = active.get(id.toLowerCase(Locale.ROOT));
+        return event != null && !event.stopped();
     }
 
     public Collection<KothConfig> allKoths() {
         return config.koths();
+    }
+
+    public HillStatus status(String id) {
+        KothConfig definition = config.koth(id);
+        if (definition == null) {
+            return null;
+        }
+        ActiveKoth running = active(definition.id());
+        if (running != null && !running.stopped()) {
+            return running.status();
+        }
+        Location center = definition.zone().center();
+        return new HillStatus(definition.id(), definition.displayName(), definition.mode().name(), definition.enabled(), false,
+            center == null ? "" : center.getWorld().getName(), center == null ? 0 : center.getBlockX(),
+            center == null ? 0 : center.getBlockY(), center == null ? 0 : center.getBlockZ(),
+            null, "", 0, definition.captureTimeSeconds(), -1, Map.of());
+    }
+
+    public Collection<HillStatus> statuses() {
+        List<HillStatus> snapshots = new ArrayList<>();
+        for (KothConfig definition : List.copyOf(config.koths())) {
+            HillStatus current = status(definition.id());
+            if (current != null) {
+                snapshots.add(current);
+            }
+        }
+        return List.copyOf(snapshots);
+    }
+
+    public void registerParticipationRule(Plugin owner, ParticipationRule rule) {
+        java.util.Objects.requireNonNull(owner, "owner");
+        java.util.Objects.requireNonNull(rule, "rule");
+        if (!owner.isEnabled()) {
+            throw new IllegalArgumentException("Rule owner must be enabled");
+        }
+        participationRules.put(owner, rule);
+        refreshParticipationRules();
+    }
+
+    public void unregisterParticipationRule(Plugin owner) {
+        participationRules.remove(owner);
+        failedRules.remove(owner);
+        refreshParticipationRules();
+    }
+
+    public boolean mayContest(String kothId, Player player) {
+        for (RuleBinding binding : participationRuleSnapshot) {
+            if (!binding.owner().isEnabled()) {
+                continue;
+            }
+            try {
+                if (!binding.rule().mayContest(kothId, player)) {
+                    return false;
+                }
+            } catch (Throwable error) {
+                if (failedRules.add(binding.owner())) {
+                    plugin.getLogger().warning("Participation rule from " + binding.owner().getName() + " failed: " + error);
+                }
+            }
+        }
+        return true;
+    }
+
+    private void refreshParticipationRules() {
+        participationRuleSnapshot = participationRules.entrySet().stream()
+            .map(entry -> new RuleBinding(entry.getKey(), entry.getValue())).toList();
     }
 
     public Selection selection(Player player) {
@@ -273,7 +418,7 @@ public final class KothManager {
             }
             event.tick();
             if (event.stopped()) {
-                active.remove(id);
+                active.remove(id, event);
             }
         }
     }

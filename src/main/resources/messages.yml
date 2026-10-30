@@ -59,6 +59,7 @@ koth:
   created: "{prefix}:emerald: {good}Created KOTH {theme}{koth}{good}."
   deleted: "{prefix}:lava_bucket: {good}Deleted KOTH {theme}{koth}{good}."
   already-running: "{prefix}{bad}KOTH already running: {theme}{koth}"
+  start-cancelled: "{prefix}{bad}Start blocked for {theme}{koth}{bad}."
   not-running: "{prefix}{bad}KOTH not running: {theme}{koth}"
   started: "{prefix}:beacon: {good}Started KOTH {theme}{koth}{good}."
   stopped: "{prefix}:redstone: {good}Stopped KOTH {theme}{koth}{good}."

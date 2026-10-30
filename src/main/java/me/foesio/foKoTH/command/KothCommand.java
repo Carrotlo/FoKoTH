@@ -5,6 +5,7 @@ import me.foesio.core.inventory.InventoryDepositService;
 import me.foesio.core.inventory.OverflowPolicy;
 import me.foesio.core.reload.FoReloadResult;
 import me.foesio.foKoTH.FoKoTH;
+import me.foesio.foKoTH.api.KothActionResult;
 import me.foesio.foKoTH.config.KothConfig;
 import me.foesio.foKoTH.koth.ActiveKoth;
 import me.foesio.foKoTH.koth.KothManager;
@@ -174,8 +175,13 @@ public final class KothCommand implements CommandExecutor, TabCompleter {
             plugin.messages().send(sender, "koth.already-running", Map.of("koth", args[1]));
             return;
         }
-        if (plugin.kothManager().start(args[1], null, KothManager.StartReason.COMMAND)) {
+        KothActionResult result = plugin.kothManager().startDetailed(args[1], null, KothManager.StartReason.COMMAND);
+        if (result == KothActionResult.STARTED) {
             plugin.messages().send(sender, "koth.started", Map.of("koth", args[1]));
+        } else if (result == KothActionResult.CANCELLED) {
+            plugin.messages().send(sender, "koth.start-cancelled", Map.of("koth", args[1]));
+        } else if (result == KothActionResult.ALREADY_ACTIVE) {
+            plugin.messages().send(sender, "koth.already-running", Map.of("koth", args[1]));
         } else {
             plugin.messages().send(sender, "general.invalid-koth", Map.of("koth", args[1]));
         }

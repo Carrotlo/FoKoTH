@@ -5,12 +5,14 @@ import me.foesio.core.inventory.InventoryDepositService;
 import me.foesio.core.inventory.OverflowPolicy;
 import me.foesio.core.message.FoMessageService;
 import me.foesio.core.sound.FoSoundService;
+import me.foesio.foKoTH.api.HillStatus;
 import me.foesio.foKoTH.api.event.FoKothCapturedEvent;
 import me.foesio.foKoTH.api.event.FoKothCaptureEndEvent;
 import me.foesio.foKoTH.api.event.FoKothCaptureStartEvent;
 import me.foesio.foKoTH.api.event.FoKothGainScoreEvent;
 import me.foesio.foKoTH.api.event.FoKothStartEvent;
 import me.foesio.foKoTH.api.event.FoKothStopEvent;
+import me.foesio.foKoTH.api.event.FoKothFinishReason;
 import me.foesio.foKoTH.config.ConfigService;
 import me.foesio.foKoTH.config.ItemDefinition;
 import me.foesio.foKoTH.config.KothConfig;
@@ -45,6 +47,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.function.BiPredicate;
 
 public final class ActiveKoth {
 
@@ -55,6 +58,7 @@ public final class ActiveKoth {
     private final TeamService teamService;
     private final WebhookService webhookService;
     private final FoSoundService sounds;
+    private final BiPredicate<String, Player> participationRule;
     private final InventoryDepositService inventoryDeposit = InventoryDepositService.create();
     private KothConfig config;
     private final Player starter;
@@ -73,7 +77,13 @@ public final class ActiveKoth {
     private final Map<UUID, Scoreboard> previousScoreboards = new HashMap<>();
     private final Set<UUID> scoreboardViewers = new HashSet<>();
 
-    public ActiveKoth(JavaPlugin plugin, FoMessageService messages, ConfigService configService, JdbcUserDataStore userData, TeamService teamService, WebhookService webhookService, FoSoundService sounds, KothConfig config, Player starter) {
+    /** Kept for consumers that constructed this internal type directly. */
+    public ActiveKoth(JavaPlugin plugin, FoMessageService messages, ConfigService configService, JdbcUserDataStore userData,
+                      TeamService teamService, WebhookService webhookService, FoSoundService sounds, KothConfig config, Player starter) {
+        this(plugin, messages, configService, userData, teamService, webhookService, sounds, config, starter, (id, player) -> true);
+    }
+
+    public ActiveKoth(JavaPlugin plugin, FoMessageService messages, ConfigService configService, JdbcUserDataStore userData, TeamService teamService, WebhookService webhookService, FoSoundService sounds, KothConfig config, Player starter, BiPredicate<String, Player> participationRule) {
         this.plugin = plugin;
         this.messages = messages;
         this.configService = configService;
@@ -81,6 +91,7 @@ public final class ActiveKoth {
         this.teamService = teamService;
         this.webhookService = webhookService;
         this.sounds = sounds;
+        this.participationRule = participationRule;
         this.config = config;
         this.starter = starter;
         this.bossBar = Bukkit.createBossBar("", config.bossbar().color(), config.bossbar().style());
@@ -88,7 +99,13 @@ public final class ActiveKoth {
 
     public void start() {
         Bukkit.getPluginManager().callEvent(new FoKothStartEvent(config.id()));
+        if (stopped) {
+            return;
+        }
         runCommands(config.startCommands(), null);
+        if (stopped) {
+            return;
+        }
         broadcast(starter == null ? "start" : "started-with-starter");
         sounds.play(config.zone().center(), "koth.started");
         webhook("start");
@@ -101,6 +118,9 @@ public final class ActiveKoth {
         }
         elapsed++;
         Player contender = contender();
+        if (stopped) {
+            return;
+        }
         if (config.mode() == KothMode.CAPTURE) {
             tickCapture(contender);
         } else {
@@ -131,22 +151,37 @@ public final class ActiveKoth {
     }
 
     public void stop(boolean naturalEnd, boolean sendBroadcast) {
+        stop(naturalEnd ? FoKothFinishReason.TIMEOUT : FoKothFinishReason.MANUAL, sendBroadcast);
+    }
+
+    public void stop(FoKothFinishReason reason, boolean sendBroadcast) {
+        java.util.Objects.requireNonNull(reason, "reason");
         if (stopped) {
             return;
         }
         stopped = true;
         if (sendBroadcast) {
-            broadcast(naturalEnd ? "out-of-time" : "stop");
-            sounds.play(config.zone().center(), naturalEnd ? "koth.timeout" : "koth.stopped");
+            broadcast(reason == FoKothFinishReason.TIMEOUT ? "out-of-time" : "stop");
+            sounds.play(config.zone().center(), reason == FoKothFinishReason.TIMEOUT ? "koth.timeout" : "koth.stopped");
         }
         runCommands(config.endCommands(), currentCapturer());
-        Bukkit.getPluginManager().callEvent(new FoKothStopEvent(config.id(), naturalEnd));
+        Bukkit.getPluginManager().callEvent(new FoKothStopEvent(config.id(), reason));
         webhook("stop");
         cleanupDisplays();
     }
 
     public boolean stopped() {
         return stopped;
+    }
+
+    public HillStatus status() {
+        Location center = config.zone().center();
+        Player current = currentCapturer();
+        return new HillStatus(config.id(), config.displayName(), config.mode().name(), config.enabled(), !stopped,
+            center == null ? "" : center.getWorld().getName(), center == null ? 0 : center.getBlockX(),
+            center == null ? 0 : center.getBlockY(), center == null ? 0 : center.getBlockZ(),
+            current == null ? null : current.getUniqueId(), current == null ? "" : teamService.teamName(current),
+            captureProgress, config.captureTimeSeconds(), maxTimeLeft(), scores);
     }
 
     public KothConfig config() {
@@ -162,6 +197,9 @@ public final class ActiveKoth {
             return;
         }
         endCapture(player);
+        if (stopped) {
+            return;
+        }
         if (config.captureEndResetTime()) {
             captureProgress = 0;
         }
@@ -234,6 +272,9 @@ public final class ActiveKoth {
             }
             current = null;
         }
+        if (stopped) {
+            return;
+        }
         if (contender == null) {
             return;
         }
@@ -243,8 +284,14 @@ public final class ActiveKoth {
                 if (config.captureEndResetTime()) {
                     captureProgress = 0;
                 }
+                if (stopped) {
+                    return;
+                }
             }
             startCapture(contender);
+            if (stopped) {
+                return;
+            }
         }
         captureProgress++;
         if (elapsed - lastStatusBroadcast >= configService.captureBroadcastEverySeconds()) {
@@ -261,20 +308,32 @@ public final class ActiveKoth {
         if (contender == null) {
             if (current != null) {
                 endCapture(current);
+                if (stopped) {
+                    return;
+                }
             }
             return;
         }
         if (current == null || !current.getUniqueId().equals(contender.getUniqueId())) {
             if (current != null) {
                 endCapture(current);
+                if (stopped) {
+                    return;
+                }
             }
             startCapture(contender);
+            if (stopped) {
+                return;
+            }
         }
         String key = scoreKey(contender);
         int score = scores.merge(key, 1, Integer::sum);
         scoreRepresentatives.put(key, contender.getUniqueId());
         rankingsDirty = true;
         Bukkit.getPluginManager().callEvent(new FoKothGainScoreEvent(config.id(), contender, score));
+        if (stopped) {
+            return;
+        }
         if (config.captureTimeSeconds() > 0 && score >= config.captureTimeSeconds()) {
             completeWin(contender);
         }
@@ -299,13 +358,20 @@ public final class ActiveKoth {
             && player.isValid()
             && !player.isDead()
             && player.getGameMode() != GameMode.SPECTATOR
-            && config.zone().contains(player);
+            && config.zone().contains(player)
+            && participationRule.test(config.id(), player);
     }
 
     private void startCapture(Player player) {
         capturer = player.getUniqueId();
         Bukkit.getPluginManager().callEvent(new FoKothCaptureStartEvent(config.id(), player));
+        if (stopped) {
+            return;
+        }
         runCommands(config.captureStartCommands(), player);
+        if (stopped) {
+            return;
+        }
         broadcast("capture-start");
         sounds.play(player, "koth.capture-start");
         webhook("capture-start");
@@ -313,7 +379,15 @@ public final class ActiveKoth {
 
     private void endCapture(Player player) {
         Bukkit.getPluginManager().callEvent(new FoKothCaptureEndEvent(config.id(), player));
+        if (stopped) {
+            capturer = null;
+            return;
+        }
         runCommands(config.captureEndCommands(), player);
+        if (stopped) {
+            capturer = null;
+            return;
+        }
         broadcast("capture-lost");
         sounds.play(player, "koth.capture-lost");
         webhook("capture-end");
@@ -323,17 +397,20 @@ public final class ActiveKoth {
     private void completeWin(Player player) {
         String team = teamService.teamName(player);
         Bukkit.getPluginManager().callEvent(new FoKothCapturedEvent(config.id(), player, team));
+        if (stopped) {
+            return;
+        }
         userData.recordWin(player, team, config.id(), config.mode().name());
         reward(player);
         sounds.play(player, "koth.reward");
         broadcast("captured");
         sounds.play(config.zone().center(), "koth.captured");
         webhook("captured");
-        stop(true, false);
+        stop(FoKothFinishReason.WIN, false);
     }
 
     private void timeout() {
-        stop(true, true);
+        stop(FoKothFinishReason.TIMEOUT, true);
     }
 
     private void reward(Player winner) {

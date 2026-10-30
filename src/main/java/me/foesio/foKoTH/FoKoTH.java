@@ -13,6 +13,9 @@ import me.foesio.core.sound.FoEditorSounds;
 import me.foesio.core.sound.FoSoundService;
 import me.foesio.core.text.FoText;
 import me.foesio.core.update.UpdateNoticeService;
+import me.foesio.foKoTH.api.FoKothApi;
+import me.foesio.foKoTH.api.FoKothApiService;
+import me.foesio.foKoTH.api.event.FoKothFinishReason;
 import me.foesio.foKoTH.command.AdminCommand;
 import me.foesio.foKoTH.config.ConfigService;
 import me.foesio.foKoTH.editor.EditorManager;
@@ -29,6 +32,7 @@ import org.bukkit.Bukkit;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.plugin.java.JavaPlugin;
+import org.bukkit.plugin.ServicePriority;
 
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -51,6 +55,7 @@ public final class FoKoTH extends JavaPlugin {
     private EditorManager editorManager;
     private UpdateNoticeService updateNotices;
     private PlaceholderHook placeholderHook;
+    private FoKothApiService apiService;
 
     @Override
     public void onEnable() {
@@ -85,6 +90,10 @@ public final class FoKoTH extends JavaPlugin {
         Bukkit.getPluginManager().registerEvents(new StarterListener(this, messages, kothManager, sounds), this);
         Bukkit.getPluginManager().registerEvents(new PlayerStateListener(kothManager), this);
 
+        this.apiService = new FoKothApiService(this, kothManager, teamService);
+        Bukkit.getPluginManager().registerEvents(apiService, this);
+        Bukkit.getServicesManager().register(FoKothApi.class, apiService, this, ServicePriority.Normal);
+
         refreshPlaceholderHook();
 
         logInfo("console.startup", "{prefix}enabled v{version}", Map.of("version", getDescription().getVersion()));
@@ -99,8 +108,12 @@ public final class FoKoTH extends JavaPlugin {
             scheduleManager.stop();
         }
         if (kothManager != null) {
-            kothManager.stopAll(false);
+            kothManager.stopAll(FoKothFinishReason.SHUTDOWN, false);
             kothManager.shutdownTasks();
+        }
+        if (apiService != null) {
+            Bukkit.getServicesManager().unregister(FoKothApi.class, apiService);
+            apiService = null;
         }
         if (userDataStore != null) {
             userDataStore.close();

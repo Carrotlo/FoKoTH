@@ -1,23 +1,32 @@
 package me.foesio.foKoTH.hook;
 
+import me.foesio.foKoTH.api.TeamResolver;
 import me.foesio.foKoTH.config.ConfigService;
 import me.foesio.core.message.FoMessageService;
 import me.foesio.core.text.FoText;
 import org.bukkit.entity.Player;
+import org.bukkit.plugin.Plugin;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scoreboard.Team;
 
 import java.lang.reflect.Method;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 public final class TeamService {
 
     private final JavaPlugin plugin;
     private final FoMessageService messages;
     private final ConfigService config;
+    private final Map<String, RegisteredResolver> resolvers = new HashMap<>();
+    private final Set<String> failedResolvers = new HashSet<>();
     private String hook;
+
+    private record RegisteredResolver(Plugin owner, TeamResolver resolver) {}
 
     public TeamService(JavaPlugin plugin, FoMessageService messages, ConfigService config) {
         this.plugin = plugin;
@@ -39,6 +48,22 @@ public final class TeamService {
             return "";
         }
         String normalized = hook.toLowerCase(Locale.ROOT);
+        RegisteredResolver custom = resolvers.get(normalized);
+        if (custom != null) {
+            if (!custom.owner().isEnabled()) {
+                resolvers.remove(normalized);
+            } else {
+                try {
+                    String team = custom.resolver().teamName(player);
+                    return team == null ? "" : team.trim();
+                } catch (Throwable error) {
+                    if (failedResolvers.add(normalized)) {
+                        plugin.getLogger().warning("Team resolver " + normalized + " failed: " + error);
+                    }
+                }
+            }
+            return bukkitTeam(player);
+        }
         if (normalized.equals("bukkit")) {
             return bukkitTeam(player);
         }
@@ -52,6 +77,49 @@ public final class TeamService {
     public String display(Player player) {
         String team = teamName(player);
         return team.isEmpty() ? player.getName() : team + " " + player.getName();
+    }
+
+    public boolean registerResolver(Plugin owner, String id, TeamResolver resolver) {
+        java.util.Objects.requireNonNull(owner, "owner");
+        java.util.Objects.requireNonNull(resolver, "resolver");
+        if (!owner.isEnabled() || id == null || !id.matches("[a-zA-Z0-9_-]+")) {
+            return false;
+        }
+        String key = id.toLowerCase(Locale.ROOT);
+        if (Set.of("none", "bukkit", "betterteams", "factionsuuid", "gangsplus", "guilds",
+            "kingdomsx", "saberfactions", "superiorskyblock2", "towny", "ultimateclans",
+            "parties", "axparties", "zelteams", "foteams").contains(key)) {
+            return false;
+        }
+        RegisteredResolver existing = resolvers.get(key);
+        if (existing != null && existing.owner() != owner && existing.owner().isEnabled()) {
+            return false;
+        }
+        resolvers.put(key, new RegisteredResolver(owner, resolver));
+        failedResolvers.remove(key);
+        return true;
+    }
+
+    public void unregisterResolver(Plugin owner, String id) {
+        if (owner == null || id == null) {
+            return;
+        }
+        String key = id.toLowerCase(Locale.ROOT);
+        RegisteredResolver registered = resolvers.get(key);
+        if (registered != null && registered.owner() == owner) {
+            resolvers.remove(key);
+            failedResolvers.remove(key);
+        }
+    }
+
+    public void unregisterOwner(Plugin owner) {
+        resolvers.entrySet().removeIf(entry -> {
+            if (entry.getValue().owner() != owner) {
+                return false;
+            }
+            failedResolvers.remove(entry.getKey());
+            return true;
+        });
     }
 
     private String bukkitTeam(Player player) {
